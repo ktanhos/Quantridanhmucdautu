@@ -36,7 +36,7 @@ def _inject_ui_style():
 def _historical_comparison(returns, benchmark_returns, weights):
     r=returns.apply(pd.to_numeric,errors="coerce").copy()
     w=pd.Series(weights,dtype=float).reindex(r.columns).fillna(0.0)
-    portfolio_daily=r.mul(w,axis=1).sum(axis=1,min_count=1)
+    portfolio_daily=r.dropna(how="any").mul(w,axis=1).sum(axis=1)
     benchmark=pd.Series(benchmark_returns,dtype=float).reindex(portfolio_daily.index)
     frame=pd.concat([portfolio_daily.rename("Danh mục"),benchmark.rename("VNINDEX")],axis=1).dropna()
     if frame.empty:return pd.DataFrame()
@@ -44,73 +44,34 @@ def _historical_comparison(returns, benchmark_returns, weights):
 
 
 def _allocation_chart(weights):
-    """Biểu đồ dùng trực tiếp cùng dữ liệu tỷ trọng với bảng."""
     chart_data=weights.copy().astype(float)
     chart_data.index=chart_data.index.astype(str)
     chart_data.columns=chart_data.columns.astype(str)
-    ticker_order=list(chart_data.index)
     scenario_order=list(chart_data.columns)
-
-    chart_data=(
-        chart_data.mul(100.0)
-        .rename_axis("Mã")
-        .reset_index()
-        .melt(id_vars="Mã",var_name="Phương án",value_name="Tỷ trọng")
-    )
+    chart_data=(chart_data.mul(100.0).rename_axis("Mã").reset_index().melt(id_vars="Mã",var_name="Phương án",value_name="Tỷ trọng"))
     chart_data["Tỷ trọng"]=pd.to_numeric(chart_data["Tỷ trọng"],errors="coerce")
     chart_data=chart_data.dropna(subset=["Tỷ trọng"])
-
     sums=chart_data.groupby("Phương án",sort=False)["Tỷ trọng"].sum()
     invalid=sums[~np.isclose(sums.values,100.0,atol=1e-6)]
-    if not invalid.empty:
-        st.warning("Dữ liệu tỷ trọng của một hoặc nhiều phương án không bằng 100%. Biểu đồ đang hiển thị đúng dữ liệu đầu vào và không tự điều chỉnh tỷ trọng.")
-
+    if not invalid.empty:st.warning("Dữ liệu tỷ trọng của một hoặc nhiều phương án không bằng 100%. Biểu đồ đang hiển thị đúng dữ liệu đầu vào và không tự điều chỉnh tỷ trọng.")
     max_value=float(chart_data["Tỷ trọng"].max()) if not chart_data.empty else 0.0
     chart_max=10 if max_value<=0 else max(10,math.ceil((max_value*1.15)/5)*5)
     chart_max=min(chart_max,100)
-
     base=alt.Chart(chart_data)
-
-    # Dùng cú pháp tối giản tương thích Altair 6. Không truyền sort vào xOffset
-    # vì một số phiên bản Altair 6 không chấp nhận tham số sort ở kênh này.
     bars=base.mark_bar(size=24).encode(
-        x=alt.X(
-            "Phương án:N",
-            title="Phương án",
-            sort=scenario_order,
-            axis=alt.Axis(labelAngle=0,labelLimit=160,titlePadding=14),
-        ),
+        x=alt.X("Phương án:N",title="Phương án",sort=scenario_order,axis=alt.Axis(labelAngle=0,labelLimit=160,titlePadding=14)),
         xOffset=alt.XOffset("Mã:N"),
-        y=alt.Y(
-            "Tỷ trọng:Q",
-            title="Tỷ trọng (%)",
-            scale=alt.Scale(domain=[0,chart_max],nice=False),
-            axis=alt.Axis(format=".0f",tickCount=max(3,int(chart_max/5)+1),titlePadding=10),
-        ),
-        color=alt.Color(
-            "Mã:N",
-            title="Mã cổ phiếu",
-            legend=alt.Legend(orient="right",symbolType="square"),
-        ),
-        tooltip=[
-            alt.Tooltip("Phương án:N",title="Phương án"),
-            alt.Tooltip("Mã:N",title="Mã cổ phiếu"),
-            alt.Tooltip("Tỷ trọng:Q",title="Tỷ trọng",format=".2f"),
-        ],
+        y=alt.Y("Tỷ trọng:Q",title="Tỷ trọng (%)",scale=alt.Scale(domain=[0,chart_max],nice=False),axis=alt.Axis(format=".0f",tickCount=max(3,int(chart_max/5)+1),titlePadding=10)),
+        color=alt.Color("Mã:N",title="Mã cổ phiếu",legend=alt.Legend(orient="right",symbolType="square")),
+        tooltip=[alt.Tooltip("Phương án:N",title="Phương án"),alt.Tooltip("Mã:N",title="Mã cổ phiếu"),alt.Tooltip("Tỷ trọng:Q",title="Tỷ trọng",format=".2f")],
     )
-
-    labels=base.mark_text(dy=-8,fontSize=10).encode(
-        x=alt.X("Phương án:N",sort=scenario_order),
-        xOffset=alt.XOffset("Mã:N"),
-        y=alt.Y("Tỷ trọng:Q",scale=alt.Scale(domain=[0,chart_max],nice=False)),
-        text=alt.Text("Tỷ trọng:Q",format=".1f"),
-    )
-
+    labels=base.mark_text(dy=-8,fontSize=10).encode(x=alt.X("Phương án:N",sort=scenario_order),xOffset=alt.XOffset("Mã:N"),y=alt.Y("Tỷ trọng:Q",scale=alt.Scale(domain=[0,chart_max],nice=False)),text=alt.Text("Tỷ trọng:Q",format=".1f"))
     return (bars+labels).properties(height=390)
 
 
 def _scenario_metrics(result,label,benchmark_returns):
-    return calculate_portfolio_risk(result["returns"],result["weights"][label],benchmark_returns=benchmark_returns)
+    rf=float(result.get("risk_free_rate",0.04))
+    return calculate_portfolio_risk(result["returns"],result["weights"][label],benchmark_returns=benchmark_returns,risk_free_rate=rf)
 
 
 def _scenario_metrics_table(result,weights,benchmark_returns):
@@ -143,8 +104,8 @@ def _scenario_detail(label,result,weights,benchmark_returns,investment_capital):
     c1.metric("Maximum Drawdown",_fmt_pct(m["max_drawdown"]));c2.metric("VaR 95% ngày",_fmt_pct(m["var_95_daily"]));c3.metric("CVaR 95% ngày",_fmt_pct(m["cvar_95_daily"]));c4.metric("Calmar Ratio",_fmt_ratio(m["calmar"]))
     with st.expander("Chỉ tiêu chuyên sâu",expanded=False):
         c1,c2,c3,c4=st.columns(4)
-        c1.metric("Beta VNINDEX",_fmt_ratio(m["beta"]));c2.metric("Information Ratio",_fmt_ratio(m["information_ratio"]));c3.metric("HHI",f"{m['concentration_hhi']:.3f}");c4.metric("Số vị thế tương đương",f"{m['effective_positions']:.1f}")
-        st.markdown('<div class="metric-note">HHI đo mức độ tập trung. Chỉ số càng cao thì danh mục càng phụ thuộc vào ít mã. Số vị thế tương đương giúp diễn giải mức độ đa dạng hóa dễ hiểu hơn.</div>',unsafe_allow_html=True)
+        c1.metric("Beta VNINDEX",_fmt_ratio(m["beta"]));c2.metric("Information Ratio",_fmt_ratio(m["information_ratio"]));c3.metric("Jensen Alpha",_fmt_pct(m["jensen_alpha"]));c4.metric("Treynor Ratio",_fmt_ratio(m["treynor"]))
+        st.markdown('<div class="metric-note">Sharpe đo lợi suất vượt lãi suất phi rủi ro trên tổng rủi ro. Information Ratio đo lợi suất chủ động trên rủi ro chủ động. Jensen Alpha và Treynor bổ sung góc nhìn theo rủi ro hệ thống.</div>',unsafe_allow_html=True)
     with st.expander("Phân bổ vốn",expanded=True):
         selected=weights[label].sort_values(ascending=False)
         table=selected[selected>1e-6].rename("Tỷ trọng").to_frame()
@@ -167,28 +128,25 @@ def render_portfolio_optimization(returns,policy,benchmark_returns=None):
     st.markdown('<div class="portfolio-subtitle">Hệ thống xây dựng nhiều phương án phân bổ từ dữ liệu lịch sử, sau đó so sánh lợi suất, rủi ro và mức độ phù hợp. Phân bổ tham chiếu chỉ là mốc so sánh.</div>',unsafe_allow_html=True)
     max_weight=float(policy.get("max_single_stock_weight",0.10)) if policy else 0.10
     target=float(policy.get("target_return",0)) if policy else None
-    try:result=optimize_portfolios(returns,max_weight=max_weight,target_return=target)
+    rf=float(policy.get("risk_free_rate",0.04)) if policy else 0.04
+    try:result=optimize_portfolios(returns,max_weight=max_weight,risk_free_rate=rf,target_return=target)
     except Exception as exc:st.error(str(exc));return
     weights=result["weights"].copy();n=len(weights.index)
     if abs(result["requested_max_weight"]-1/n)<1e-10:
-        st.info(f"Tập hiện tại có {n} mã và giới hạn {result['requested_max_weight']:.0%}/mã. Ràng buộc này khiến mọi mã phải nhận đúng tỷ trọng giới hạn, vì vậy các phương án có thể trùng nhau. Muốn mô hình có thêm không gian tối ưu, hãy mở rộng tập mã hoặc điều chỉnh giới hạn.")
+        st.info(f"Tập hiện tại có {n} mã và giới hạn {result['requested_max_weight']:.0%}/mã. Ràng buộc này khiến mọi mã phải nhận đúng tỷ trọng giới hạn, vì vậy các phương án có thể trùng nhau.")
     if result.get("target_return") is not None and not result.get("target_feasible",False):st.warning("Chưa có phương án thỏa đồng thời mục tiêu lợi nhuận và các giới hạn hiện tại. Không nên coi một nghiệm không đạt mục tiêu là danh mục tối ưu.")
-
     st.subheader("7.1. Nhìn nhanh các phương án")
     _scenario_cards(result,weights,benchmark_returns)
     st.markdown('<div class="metric-note">Lợi suất lịch sử và các chỉ tiêu rủi ro được tính lại trên chuỗi dữ liệu quá khứ của từng phương án.</div>',unsafe_allow_html=True)
-
     st.subheader("7.2. So sánh hiệu quả và rủi ro")
     st.dataframe(_scenario_metrics_table(result,weights,benchmark_returns),use_container_width=True,hide_index=False)
-
     st.subheader("7.3. So sánh tỷ trọng")
     display=weights.copy()
     for col in display.columns:display[col]=display[col].map(lambda x:f"{x:.2%}")
     st.dataframe(display,use_container_width=True)
     st.markdown("**Biểu đồ 7.1. So sánh tỷ trọng giữa các phương án**")
     st.altair_chart(_allocation_chart(weights),use_container_width=True)
-    st.caption("Biểu đồ sử dụng trực tiếp cùng bộ tỷ trọng với bảng phía trên. Số trên mỗi cột là tỷ trọng thực tế; tổng mỗi phương án được kiểm tra bằng 100%.")
-
+    st.caption("Biểu đồ sử dụng trực tiếp cùng bộ tỷ trọng với bảng phía trên. Tổng mỗi phương án được kiểm tra bằng 100%.")
     st.subheader("7.4. Xem chi tiết từng phương án")
     st.caption("Chọn một phương án để xem phân bổ vốn, các chỉ tiêu chuyên sâu và lịch sử so với VNINDEX.")
     scenarios=["Phân bổ tham chiếu","Minimum Variance","Optimal Risky","Maximum Return"]
