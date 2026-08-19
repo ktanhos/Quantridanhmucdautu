@@ -12,7 +12,7 @@ def render_portfolio_performance(returns,benchmark_returns=None,current_weights=
     if current_weights is not None and not current_weights.empty:
         w=current_weights.reindex(returns.columns).fillna(0);w=w/w.sum() if w.sum()>0 else w;portfolio=returns.mul(w,axis=1).sum(axis=1)
     else:portfolio=returns.mean(axis=1)
-    p=_stats(portfolio);b=_stats(benchmark_returns) if benchmark_returns is not None else None
+    p=_stats(portfolio);b=_stats(benchmark_returns) if benchmark_returns is not None else None;st.session_state['portfolio_performance']=p
     st.subheader('10.1. Các chỉ tiêu chính');c1,c2,c3,c4=st.columns(4);c1.metric('Lợi suất tích lũy',f'{p["Cumulative Return"]:.2%}');c2.metric('Lợi suất năm hóa',f'{p["Annualized Return"]:.2%}');c3.metric('Sharpe Ratio',f'{p["Sharpe Ratio"]:.2f}');c4.metric('Maximum Drawdown',f'{p["Maximum Drawdown"]:.2%}')
     rows=[['Danh mục',p['Cumulative Return'],p['Annualized Return'],p['Annualized Volatility'],p['Sharpe Ratio'],p['Maximum Drawdown']]]
     if b:rows.append(['VNINDEX',b['Cumulative Return'],b['Annualized Return'],b['Annualized Volatility'],b['Sharpe Ratio'],b['Maximum Drawdown']])
