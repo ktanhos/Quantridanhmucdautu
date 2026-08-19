@@ -1,21 +1,39 @@
 import streamlit as st
+import pandas as pd
 from portfolio_optimization import optimize_portfolios
 
-def render_portfolio_optimization(returns,policy):
+def _fmt_pct(x):
+    return 'N/A' if pd.isna(x) else f'{x:.2%}'
+
+def _historical_comparison(returns, benchmark_returns, weights):
+    r=returns.apply(pd.to_numeric,errors='coerce').copy();w=pd.Series(weights,dtype=float).reindex(r.columns).fillna(0.0)
+    portfolio_daily=r.mul(w,axis=1).sum(axis=1,min_count=1)
+    benchmark=pd.Series(benchmark_returns,dtype=float).reindex(portfolio_daily.index)
+    frame=pd.concat([portfolio_daily.rename('Danh mục'),benchmark.rename('VNINDEX')],axis=1).dropna()
+    if frame.empty:return pd.DataFrame()
+    return ((1+frame).cumprod()*100).sort_index()
+
+def render_portfolio_optimization(returns,policy,benchmark_returns=None):
     st.header('Bước 7. Tối ưu hóa danh mục')
-    st.caption('Xây dựng các danh mục mục tiêu từ dữ liệu lịch sử và giới hạn rủi ro trong Hồ sơ đầu tư. Đây là kết quả mô hình, không phải khuyến nghị mua bán.')
-    max_weight=float(policy.get('max_single_stock_weight',0.10)) if policy else 0.10
-    target=float(policy.get('target_return',0)) if policy else None
+    st.caption('Xây dựng các phương án phân bổ từ dữ liệu lịch sử. Phân bổ tham chiếu chỉ là mốc so sánh, không phải danh mục nhà đầu tư đang nắm giữ.')
+    max_weight=float(policy.get('max_single_stock_weight',0.10)) if policy else 0.10;target=float(policy.get('target_return',0)) if policy else None
     try:result=optimize_portfolios(returns,max_weight=max_weight,target_return=target)
     except Exception as exc:st.error(str(exc));return
-    st.subheader('7.1. So sánh các danh mục mô hình')
-    summary=result['summary'].copy();summary['Lợi suất kỳ vọng']=summary['Lợi suất kỳ vọng'].map(lambda x:f'{x:.2%}');summary['Độ biến động']=summary['Độ biến động'].map(lambda x:f'{x:.2%}');summary['Sharpe Ratio']=summary['Sharpe Ratio'].map(lambda x:f'{x:.2f}');st.dataframe(summary,use_container_width=True)
-    st.subheader('7.2. Phân bổ tài sản theo danh mục')
-    weights=result['weights'].copy();weights=weights[weights.max(axis=1)>1e-6];display=weights.copy()
+    st.subheader('7.1. So sánh các phương án phân bổ')
+    summary=result['summary'].copy();summary['Lợi suất kỳ vọng']=summary['Lợi suất kỳ vọng'].map(_fmt_pct);summary['Độ biến động']=summary['Độ biến động'].map(_fmt_pct);summary['Sharpe Ratio']=summary['Sharpe Ratio'].map(lambda x:'N/A' if pd.isna(x) else f'{x:.2f}');st.dataframe(summary,use_container_width=True,hide_index=False)
+    if result['effective_max_weight']>result['requested_max_weight']+1e-9:st.info(f"Tập cổ phiếu có {result['universe_size']} mã. Giới hạn {result['requested_max_weight']:.0%}/mã không thể thỏa mãn khi tổng tỷ trọng bằng 100%, nên mô hình dùng mức tối thiểu khả thi {result['effective_max_weight']:.2%}/mã.")
+    st.subheader('7.2. Phân bổ giữa các phương án')
+    weights=result['weights'].copy();display=weights.copy()
     for col in display.columns:display[col]=display[col].map(lambda x:f'{x:.2%}')
     st.dataframe(display,use_container_width=True)
-    selected=st.selectbox('Danh mục mô hình muốn xem sâu',['Minimum Variance','Optimal Risky','Maximum Return'])
-    st.markdown(f'**Bảng 7.1. Tỷ trọng {selected}**')
-    selected_weights=weights[selected].sort_values(ascending=False);selected_table=selected_weights[selected_weights>1e-6].rename('Tỷ trọng').to_frame();selected_table['Tỷ trọng']=selected_table['Tỷ trọng'].map(lambda x:f'{x:.2%}');st.dataframe(selected_table,use_container_width=True)
-    st.caption('Maximum Return chọn cổ phiếu có lợi suất lịch sử cao nhất và bị giới hạn bởi tỷ trọng tối đa. Optimal Risky tìm kiếm theo Sharpe Ratio. Minimum Variance ưu tiên giảm phương sai.')
+    st.markdown('**Biểu đồ 7.1. So sánh tỷ trọng giữa các phương án**');st.bar_chart((weights*100).T,use_container_width=True);st.caption('Phân bổ tham chiếu chia đều vốn cho toàn bộ cổ phiếu. Các phương án còn lại là kết quả tối ưu hóa theo các mục tiêu khác nhau.')
+    selected=st.selectbox('Chọn phương án để xem sâu',['Phân bổ tham chiếu','Minimum Variance','Optimal Risky','Maximum Return'],index=2,key='selected_portfolio_scenario')
+    st.markdown(f'**7.3. Chi tiết phương án: {selected}**')
+    selected_weights=weights[selected].sort_values(ascending=False);selected_table=selected_weights[selected_weights>1e-6].rename('Tỷ trọng').to_frame();selected_table['Số tiền dự kiến']=selected_table['Tỷ trọng']*float(st.session_state.get('investment_capital',0));selected_table['Tỷ trọng']=selected_table['Tỷ trọng'].map(lambda x:f'{x:.2%}');selected_table['Số tiền dự kiến']=selected_table['Số tiền dự kiến'].map(lambda x:f'{x:,.0f} VNĐ' if x>0 else 'N/A');st.dataframe(selected_table,use_container_width=True)
+    st.markdown('**7.4. Lịch sử phương án so với VNINDEX**')
+    historical=_historical_comparison(returns,benchmark_returns,weights[selected]) if benchmark_returns is not None else pd.DataFrame()
+    if historical.empty:st.info('Chưa đủ dữ liệu chung giữa phương án và VNINDEX để vẽ biểu đồ lịch sử.')
+    else:
+        st.line_chart(historical,use_container_width=True);st.caption('Chỉ sử dụng dữ liệu lịch sử. Cả phương án được chọn và VNINDEX được quy đổi về 100 tại ngày đầu tiên có dữ liệu chung. Đây là so sánh quá khứ, không phải dự báo lợi nhuận tương lai.');st.caption(f"Giai đoạn so sánh: {historical.index.min().strftime('%d/%m/%Y')} đến {historical.index.max().strftime('%d/%m/%Y')}.")
+    st.markdown('**7.5. Cách hiểu các phương án**');st.write('Phân bổ tham chiếu: chia đều để tạo mốc so sánh. Minimum Variance: ưu tiên giảm biến động danh mục. Optimal Risky: tìm sự cân bằng giữa lợi suất kỳ vọng và rủi ro. Maximum Return: ưu tiên lợi suất kỳ vọng nhưng vẫn chịu giới hạn tập trung.')
     st.session_state['optimization_result']=result
