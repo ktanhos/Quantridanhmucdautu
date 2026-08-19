@@ -67,7 +67,7 @@ if 'market_data' in st.session_state:
     quality=quality.rename(columns={'Giá hiện tại':'Giá hiện tại (VNĐ)','Biến động Annualized':'Volatility Annualized','Khối lượng TB':'Average Volume','Số phiên có dữ liệu':'Số phiên dữ liệu','Độ phủ dữ liệu':'Data Coverage'})
     st.subheader('Thống kê thị trường và chất lượng dữ liệu');st.dataframe(quality,use_container_width=True,hide_index=True);st.caption('1M khoảng 21 phiên, 6M khoảng 126 phiên và 12M khoảng 252 phiên. Volatility Annualized là độ biến động quy đổi về cơ sở một năm từ lợi suất ngày. Average Volume là khối lượng giao dịch bình quân mỗi phiên. Data Coverage là tỷ lệ phiên có dữ liệu hợp lệ.')
     st.divider();render_market_regime(data['benchmark_prices'],None,data['benchmark_ohlcv']['volume']);st.caption('Market Regime được xác định từ VNINDEX OHLCV, độc lập với danh mục mục tiêu.')
-    st.divider();render_portfolio_risk(data['returns'],data['benchmark_returns']);st.divider();render_portfolio_optimization(data['returns'],st.session_state.get('policy') or {})
+    st.divider();render_portfolio_risk(data['returns'],data['benchmark_returns']);st.divider();render_portfolio_optimization(data['returns'],st.session_state.get('policy') or {},data['benchmark_returns'])
     if 'optimization_result' in st.session_state:render_recommendation(data['returns'],st.session_state['optimization_result'],st.session_state.get('regime_result'),st.session_state.get('policy') or {})
     if 'target_equity' in st.session_state:render_portfolio_performance(data['returns'],data['benchmark_returns'],st.session_state['target_equity'])
     if 'portfolio_performance' in st.session_state:
