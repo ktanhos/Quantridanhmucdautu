@@ -65,5 +65,6 @@ if 'market_data' in st.session_state:
     st.divider();render_market_regime(data['benchmark_prices'],None,data['benchmark_ohlcv']['volume']);st.caption('Market Regime được xác định từ VNINDEX OHLCV, độc lập với danh mục mục tiêu.')
     st.divider();render_portfolio_risk(data['returns'],data['benchmark_returns']);st.divider();render_portfolio_optimization(data['returns'],st.session_state.get('policy') or {})
     if 'optimization_result' in st.session_state:render_recommendation(data['returns'],st.session_state['optimization_result'],st.session_state.get('regime_result'),st.session_state.get('policy') or {})
-    st.divider();render_portfolio_performance(data['returns'],data['benchmark_returns'],None)
-    st.divider();render_portfolio_summary(st.session_state.get('portfolio_performance'),st.session_state.get('regime_result'),None,st.session_state.get('target_equity'))
+    if 'target_equity' in st.session_state:render_portfolio_performance(data['returns'],data['benchmark_returns'],st.session_state['target_equity'])
+    if 'portfolio_performance' in st.session_state:
+        st.divider();render_portfolio_summary(st.session_state.get('portfolio_performance'),st.session_state.get('regime_result'),None,st.session_state.get('target_equity'))
