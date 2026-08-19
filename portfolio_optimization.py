@@ -59,9 +59,6 @@ def optimize_portfolios(returns,max_weight=0.10,risk_free_rate=0.0,target_return
     requested_max_weight=float(max_weight)
     required_assets=int(np.ceil(1/requested_max_weight)) if requested_max_weight>0 else n
     constraint_feasible=(n*requested_max_weight)>=1-1e-10
-
-    # Khi ràng buộc không khả thi, không tự ý nâng giới hạn.
-    # Các nghiệm bên dưới chỉ là nghiệm tham khảo để cho người dùng thấy mô hình đang nghiêng về đâu.
     effective_max_weight=requested_max_weight if constraint_feasible else 1.0
 
     inv=np.linalg.pinv(cov.values+np.eye(n)*1e-8)
@@ -73,7 +70,6 @@ def optimize_portfolios(returns,max_weight=0.10,risk_free_rate=0.0,target_return
         w_mv=w_mv/w_mv.sum() if w_mv.sum()>0 else np.ones(n)/n
 
     w_equal=np.ones(n)/n
-
     positive_mu=np.maximum(mu.values,0)
     raw_mr=positive_mu if positive_mu.sum()>0 else np.ones(n)
     if constraint_feasible:
@@ -99,15 +95,15 @@ def optimize_portfolios(returns,max_weight=0.10,risk_free_rate=0.0,target_return
     w_opt=best
 
     target_feasible=False
-    if target_return is not None:
-        target=float(target_return)
+    target_value=None if target_return is None else float(target_return)
+    if target_value is not None:
         best_target=None
         best_vol=np.inf
         for _ in range(30000):
             raw=rng.dirichlet(np.ones(n))
             w=_project_weights(raw,effective_max_weight) if constraint_feasible else raw
             ret,vol,_=_metrics(w,mu.values,cov.values,risk_free_rate)
-            if ret>=target and vol<best_vol:
+            if ret>=target_value and vol<best_vol:
                 best_target=w
                 best_vol=vol
         if best_target is not None:
@@ -137,4 +133,5 @@ def optimize_portfolios(returns,max_weight=0.10,risk_free_rate=0.0,target_return
         'constraint_feasible':constraint_feasible,
         'required_assets':required_assets,
         'target_feasible':target_feasible,
+        'target_return':target_value,
     }
