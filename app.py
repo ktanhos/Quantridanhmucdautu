@@ -6,10 +6,10 @@ from data_provider import configure_vnstock
 from market_regime_ui import render_market_regime
 from portfolio_risk_ui import render_portfolio_risk
 from portfolio_optimization_ui import render_portfolio_optimization
+from portfolio_recommendation_ui import render_recommendation
 from policy import InvestmentPolicy, risk_label, validate_policy
 st.set_page_config(page_title=APP_NAME,page_icon='📊',layout='wide',initial_sidebar_state='expanded')
-st.title('Quản trị danh mục đầu tư')
-st.caption('Danh mục cổ phiếu Việt Nam và tài sản phòng thủ. Market Regime được xác định độc lập với danh mục người dùng.')
+st.title('Quản trị danh mục đầu tư');st.caption('Danh mục cổ phiếu Việt Nam và tài sản phòng thủ. Market Regime được xác định độc lập với danh mục người dùng.')
 if 'policy' not in st.session_state:st.session_state['policy']=None
 st.header('Bước 1. Kết nối dữ liệu');api_key=st.text_input('Mã truy cập Vnstock',type='password')
 st.header('Bước 2. Hồ sơ đầu tư')
@@ -46,3 +46,4 @@ if 'market_data' in st.session_state:
     st.divider();render_market_regime(data['benchmark_prices'],None,data['benchmark_ohlcv']['volume']);st.caption('Market Regime được xác định từ VNINDEX OHLCV, độc lập với danh mục người dùng.')
     st.divider();render_portfolio_risk(data['returns'],data['benchmark_returns'])
     st.divider();render_portfolio_optimization(data['returns'],st.session_state.get('policy') or {})
+    if 'optimization_result' in st.session_state:render_recommendation(data['returns'],st.session_state['optimization_result'],st.session_state.get('regime_result'),st.session_state.get('policy') or {})
