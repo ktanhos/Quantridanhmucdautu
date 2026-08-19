@@ -67,4 +67,5 @@ if 'market_data' in st.session_state:
     if 'optimization_result' in st.session_state:render_recommendation(data['returns'],st.session_state['optimization_result'],st.session_state.get('regime_result'),st.session_state.get('policy') or {})
     if 'target_equity' in st.session_state:render_portfolio_performance(data['returns'],data['benchmark_returns'],st.session_state['target_equity'])
     if 'portfolio_performance' in st.session_state:
-        st.divider();render_portfolio_summary(st.session_state.get('portfolio_performance'),st.session_state.get('regime_result'),None,st.session_state.get('target_equity'))
+        target_equity_total=float(pd.Series(st.session_state.get('target_equity'),dtype=float).sum())
+        st.divider();render_portfolio_summary(st.session_state.get('portfolio_performance'),st.session_state.get('regime_result'),None,target_equity_total)
