@@ -10,7 +10,7 @@ def configure_vnstock(api_key=None):
     if not api_key:return {'authenticated':False,'message':'Đang dùng chế độ khách của Vnstock.'}
     register_user(api_key=api_key);return {'authenticated':True,'message':'Đã xác thực API key Vnstock.'}
 def pause_api():time.sleep(REQUEST_PAUSE)
-def cache_path(kind,key):return CACHE_DIR/f"{kind}_{str(key).replace('/','_').replace('\\','_').replace(':','_')}.csv"
+def cache_path(kind,key):return CACHE_DIR/f"{kind}_{str(key).replace('/','_').replace('\\','_').replace(':','_')}"+'.csv'
 def normalize_columns(df):
     if df is None:return pd.DataFrame()
     out=df.copy();out.columns=[str(c).strip().lower().replace(' ','_').replace('-','_') for c in out.columns];return out
@@ -25,44 +25,53 @@ def find_col(df,candidates):
     return next((c for c in candidates if c in df.columns),None)
 def _extract_ohlcv(df):
     df=normalize_columns(df)
-    if df.empty or 'close' not in df.columns:return pd.DataFrame()
-    date_col='time' if 'time' in df.columns else 'date'
-    if date_col not in df.columns:return pd.DataFrame()
-    df[date_col]=pd.to_datetime(df[date_col]);out=df.set_index(date_col).sort_index();keep=[c for c in ['open','high','low','close','volume'] if c in out.columns]
-    for c in keep:out[c]=pd.to_numeric(out[c],errors='coerce')
-    return out[keep]
+    if df.empty:return pd.DataFrame()
+    date_col=next((c for c in ['time','date','datetime'] if c in df.columns),None);close_col=find_col(df,['close','close_price','closing_price'])
+    if date_col is None or close_col is None:return pd.DataFrame()
+    df[date_col]=pd.to_datetime(df[date_col],errors='coerce');df=df.dropna(subset=[date_col]);out=df.set_index(date_col).sort_index();out=out[~out.index.duplicated(keep='last')];rename={}
+    for target,candidates in {'open':['open','open_price'],'high':['high','high_price'],'low':['low','low_price'],'close':['close','close_price','closing_price'],'volume':['volume','vol','volume_match']}.items():
+        source=find_col(out,candidates)
+        if source:rename[source]=target
+    out=out.rename(columns=rename)
+    for c in ['open','high','low','close','volume']:
+        if c in out.columns:out[c]=pd.to_numeric(out[c],errors='coerce')
+    return out[[c for c in ['open','high','low','close','volume'] if c in out.columns]]
 def _get_equity_ohlcv(ticker,start_date,end_date):
     market=Market();start_ts=pd.Timestamp(start_date).normalize();end_ts=pd.Timestamp(end_date).normalize()
-    try:
-        raw=market.equity.ohlcv(symbol=ticker,start=start_ts.strftime('%Y-%m-%d'),end=end_ts.strftime('%Y-%m-%d'),interval='1D')
-    except TypeError:
-        raw=market.equity.ohlcv(symbol=ticker,start=start_ts.strftime('%Y-%m-%d'),end=end_ts.strftime('%Y-%m-%d'))
-    out=_extract_ohlcv(raw)
-    if out.empty:return out
-    return out[(out.index>=start_ts)&(out.index<=end_ts)]
+    errors=[]
+    for call in [lambda:market.equity.ohlcv(symbol=ticker,start=start_ts.strftime('%Y-%m-%d'),end=end_ts.strftime('%Y-%m-%d'),interval='1D'),lambda:market.equity.ohlcv(symbol=ticker,start=start_ts.strftime('%Y-%m-%d'),end=end_ts.strftime('%Y-%m-%d'))]:
+        try:
+            out=_extract_ohlcv(call())
+            if not out.empty:return out[(out.index>=start_ts)&(out.index<=end_ts)]
+        except Exception as exc:errors.append(str(exc))
+    raise ValueError(f'Không lấy được dữ liệu {ticker}: '+ ' | '.join(errors[-2:]))
 def get_price_data(tickers,start_date,end_date):
-    output={}
+    output={};errors={}
     for ticker in tickers:
         path=cache_path('price',f'{ticker}_{start_date}_{end_date}')
         try:
-            if path.exists():cached=pd.read_csv(path,parse_dates=['Date'],index_col='Date');output[ticker]=pd.to_numeric(cached['close'],errors='coerce');continue
-            ohlcv=_get_equity_ohlcv(ticker,start_date,end_date)
-            if ohlcv.empty:continue
-            ohlcv.rename_axis('Date').to_csv(path);output[ticker]=ohlcv['close'];pause_api()
-        except Exception as exc:print(f'Lỗi lấy giá {ticker}: {exc}')
-    out=pd.DataFrame(output).sort_index();out.index=pd.to_datetime(out.index).normalize();out.index.name='Date';return out
+            if path.exists():cached=pd.read_csv(path,parse_dates=['Date'],index_col='Date');series=pd.to_numeric(cached['close'],errors='coerce').dropna()
+            else:
+                ohlcv=_get_equity_ohlcv(ticker,start_date,end_date)
+                if ohlcv.empty or 'close' not in ohlcv.columns:raise ValueError('Dữ liệu rỗng hoặc thiếu giá đóng cửa')
+                ohlcv.rename_axis('Date').to_csv(path);series=ohlcv['close'].dropna();pause_api()
+            if not series.empty:output[ticker]=series
+            else:errors[ticker]='Không có giá đóng cửa hợp lệ'
+        except Exception as exc:errors[ticker]=str(exc);print(f'Lỗi lấy giá {ticker}: {exc}')
+    out=pd.DataFrame(output).sort_index();out.index=pd.to_datetime(out.index).normalize();out.index.name='Date'
+    if out.empty:raise ValueError('Không lấy được dữ liệu giá cổ phiếu. Chi tiết từng mã: '+str(errors))
+    return out
 def get_volume_data(tickers,start_date,end_date):
     output={}
     for ticker in tickers:
-        path=cache_path('volume',f'{ticker}_{start_date}_{end_date}')
         try:
+            path=cache_path('volume',f'{ticker}_{start_date}_{end_date}')
             if path.exists():cached=pd.read_csv(path,parse_dates=['Date'],index_col='Date');output[ticker]=pd.to_numeric(cached['volume'],errors='coerce');continue
             ohlcv=_get_equity_ohlcv(ticker,start_date,end_date)
             if 'volume' not in ohlcv.columns:continue
             ohlcv[['volume']].rename_axis('Date').to_csv(path);output[ticker]=ohlcv['volume'];pause_api()
         except Exception as exc:print(f'Lỗi lấy khối lượng {ticker}: {exc}')
     out=pd.DataFrame(output).sort_index();out.index=pd.to_datetime(out.index).normalize();out.index.name='Date';return out
-
 def get_benchmark_ohlcv(benchmark,start_date,end_date):
     market=Market();start_ts=pd.Timestamp(start_date).normalize();end_ts=pd.Timestamp(end_date).normalize();pieces=[];cursor=start_ts
     while cursor<=end_ts:
@@ -71,11 +80,8 @@ def get_benchmark_ohlcv(benchmark,start_date,end_date):
             try:df=pd.read_csv(path,parse_dates=['Date'],index_col='Date')
             except:df=None
         if df is None or df.empty:
-            try:
-                raw=market.index.ohlcv(symbol=benchmark,start=cursor.strftime('%Y-%m-%d'),end=chunk_end.strftime('%Y-%m-%d'),interval='1D')
-            except TypeError:
-                raw=market.index.ohlcv(symbol=benchmark,start=cursor.strftime('%Y-%m-%d'),end=chunk_end.strftime('%Y-%m-%d'))
-            df=_extract_ohlcv(raw)
+            try:df=_extract_ohlcv(market.index.ohlcv(symbol=benchmark,start=cursor.strftime('%Y-%m-%d'),end=chunk_end.strftime('%Y-%m-%d'),interval='1D'))
+            except Exception as exc:raise ValueError(f'Không lấy được OHLCV benchmark {benchmark}: {exc}')
             if df.empty:raise ValueError(f'Không lấy được OHLCV benchmark {benchmark}')
             df.rename_axis('Date').to_csv(path);pause_api()
         pieces.append(df);cursor=chunk_end+pd.Timedelta(days=1)
