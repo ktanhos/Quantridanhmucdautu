@@ -6,9 +6,9 @@ from vnstock import Market, Fundamental, Reference, register_user
 from config import CACHE_DIR, REQUEST_PAUSE
 
 def configure_vnstock(api_key=None):
-    api_key=(api_key or "").strip()
-    if not api_key:return {"authenticated":False,"message":"Đang dùng chế độ khách của Vnstock."}
-    register_user(api_key=api_key);return {"authenticated":True,"message":"Đã xác thực API key Vnstock."}
+    api_key=(api_key or '').strip()
+    if not api_key:return {'authenticated':False,'message':'Đang dùng chế độ khách của Vnstock.'}
+    register_user(api_key=api_key);return {'authenticated':True,'message':'Đã xác thực API key Vnstock.'}
 def pause_api():time.sleep(REQUEST_PAUSE)
 def cache_path(kind,key):return CACHE_DIR/f"{kind}_{str(key).replace('/','_').replace('\\','_').replace(':','_')}.csv"
 def normalize_columns(df):
@@ -32,7 +32,14 @@ def _extract_ohlcv(df):
     for c in keep:out[c]=pd.to_numeric(out[c],errors='coerce')
     return out[keep]
 def _get_equity_ohlcv(ticker,start_date,end_date):
-    market=Market();start_ts=pd.Timestamp(start_date);end_ts=pd.Timestamp(end_date);count=max(int((end_ts-start_ts).days*.72)+50,300);raw=market.equity(ticker).ohlcv(end=end_date,interval='1D',count=count);out=_extract_ohlcv(raw);return out[(out.index>=start_ts)&(out.index<=end_ts)]
+    market=Market();start_ts=pd.Timestamp(start_date).normalize();end_ts=pd.Timestamp(end_date).normalize()
+    try:
+        raw=market.equity.ohlcv(symbol=ticker,start=start_ts.strftime('%Y-%m-%d'),end=end_ts.strftime('%Y-%m-%d'),interval='1D')
+    except TypeError:
+        raw=market.equity.ohlcv(symbol=ticker,start=start_ts.strftime('%Y-%m-%d'),end=end_ts.strftime('%Y-%m-%d'))
+    out=_extract_ohlcv(raw)
+    if out.empty:return out
+    return out[(out.index>=start_ts)&(out.index<=end_ts)]
 def get_price_data(tickers,start_date,end_date):
     output={}
     for ticker in tickers:
@@ -64,13 +71,16 @@ def get_benchmark_ohlcv(benchmark,start_date,end_date):
             try:df=pd.read_csv(path,parse_dates=['Date'],index_col='Date')
             except:df=None
         if df is None or df.empty:
-            df=_extract_ohlcv(market.index(benchmark).ohlcv(start=cursor.strftime('%Y-%m-%d'),end=chunk_end.strftime('%Y-%m-%d'),interval='1D'))
+            try:
+                raw=market.index.ohlcv(symbol=benchmark,start=cursor.strftime('%Y-%m-%d'),end=chunk_end.strftime('%Y-%m-%d'),interval='1D')
+            except TypeError:
+                raw=market.index.ohlcv(symbol=benchmark,start=cursor.strftime('%Y-%m-%d'),end=chunk_end.strftime('%Y-%m-%d'))
+            df=_extract_ohlcv(raw)
             if df.empty:raise ValueError(f'Không lấy được OHLCV benchmark {benchmark}')
             df.rename_axis('Date').to_csv(path);pause_api()
         pieces.append(df);cursor=chunk_end+pd.Timedelta(days=1)
     out=pd.concat(pieces);out=out[~out.index.duplicated(keep='last')].sort_index();return out[(out.index>=start_ts)&(out.index<=end_ts)]
 def get_benchmark_prices(benchmark,start_date,end_date):return get_benchmark_ohlcv(benchmark,start_date,end_date)['close']
-
 def get_company_table(tickers,prices=None):
     ref=Reference();rows=[]
     try:sectors=normalize_columns(ref.industry.sectors())
@@ -78,7 +88,7 @@ def get_company_table(tickers,prices=None):
     sector_symbol=find_col(sectors,['symbol','ticker','stock_code','code']);sector_name=find_col(sectors,['icb_name_vi','icb_name','industry_name_vi','industry_name','industry'])
     for ticker in tickers:
         try:
-            path=cache_path('company',ticker);info=normalize_columns(pd.read_csv(path)) if path.exists() else normalize_columns(ref.company(ticker).info())
+            path=cache_path('company',ticker);info=normalize_columns(pd.read_csv(path)) if path.exists() else normalize_columns(ref.company.info(symbol=ticker))
             if not path.exists():info.to_csv(path,index=False);pause_api()
             industry=np.nan
             if sector_symbol and sector_name:
