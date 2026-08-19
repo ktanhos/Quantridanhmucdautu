@@ -13,7 +13,7 @@ def load_market_dataset(tickers, start_date, end_date, benchmark="VNINDEX"):
     volumes = volumes.reindex(prices.index)
     returns = calculate_returns(prices)
     benchmark_returns = benchmark_prices.pct_change().dropna()
-    quality = basic_data_quality_report(prices, returns)
+    quality = basic_data_quality_report(prices, returns, volumes)
     company = get_company_table(tickers, prices=prices)
     income = get_income_data(tickers)
     company_table = company.merge(income, on="Mã", how="left")
