@@ -14,7 +14,7 @@ def portfolio_returns(returns, weights):
     if w.abs().sum() == 0:
         raise ValueError("Danh mục chưa có tỷ trọng hợp lệ.")
     w = w / w.sum()
-    return r.mul(w, axis=1).sum(axis=1, min_count=1).dropna()
+    return r.dropna(how="any").mul(w, axis=1).sum(axis=1).dropna()
 
 
 def max_drawdown(series):
