@@ -38,7 +38,7 @@ if st.button('LƯU HỒ SƠ ĐẦU TƯ',type='primary',use_container_width=True,
     st.session_state['policy']=policy.to_dict(); st.success('Đã lưu hồ sơ.')
 
 st.divider(); st.header('Bước 3. Lấy dữ liệu')
-st.caption('Hệ thống tách hai lớp dữ liệu. Danh mục người dùng dùng cho phân tích cổ phiếu. Market Regime dùng riêng VNINDEX OHLCV và Market Universe, không phụ thuộc vào các mã người dùng nhập.')
+st.caption('Danh mục người dùng lấy dữ liệu giá và khối lượng riêng. Market Regime chỉ cần dữ liệu VNINDEX OHLCV theo ngày, trong đó khối lượng VNINDEX được dùng để đánh giá thanh khoản thị trường.')
 col1,col2=st.columns(2)
 with col1:
     tickers_text=st.text_input('Các mã cổ phiếu muốn theo dõi',value=', '.join(DEFAULT_TICKERS)); start_date=st.date_input('Ngày bắt đầu',value=pd.Timestamp('2022-01-01').date())
@@ -51,7 +51,7 @@ if st.button('LẤY DỮ LIỆU',type='secondary',use_container_width=True):
     if start_date>=end_date: st.error('Ngày bắt đầu phải trước ngày kết thúc.'); st.stop()
     configure_vnstock(api_key)
     try:
-        with st.spinner('Đang lấy dữ liệu danh mục, VNINDEX OHLCV và Market Universe...'):
+        with st.spinner('Đang lấy dữ liệu danh mục và VNINDEX OHLCV...'):
             st.session_state['market_data']=load_market_dataset(tickers,pd.Timestamp(start_date),pd.Timestamp(end_date),benchmark_data or DEFAULT_BENCHMARK)
     except Exception as exc: st.error(f'{type(exc).__name__}: {exc}'); st.stop()
 
@@ -61,8 +61,6 @@ if 'market_data' in st.session_state:
     c1.metric('Số mã danh mục',len(data['prices'].columns)); c2.metric('Số phiên',len(data['prices'])); c3.metric('Ngày bắt đầu',pd.Timestamp(data['start_date']).strftime('%d/%m/%Y')); c4.metric('Ngày kết thúc',pd.Timestamp(data['end_date']).strftime('%d/%m/%Y'))
     with st.expander('Dữ liệu VNINDEX OHLCV',expanded=True): st.dataframe(data['benchmark_ohlcv'].tail(20),use_container_width=True)
     with st.expander('Khối lượng danh mục',expanded=False): st.dataframe(data['volumes'].tail(20),use_container_width=True)
-    with st.expander('Market Universe',expanded=False): st.dataframe(data['market_universe_prices'].tail(10),use_container_width=True)
-    with st.expander('Khối lượng Market Universe',expanded=False): st.dataframe(data['market_universe_volumes'].tail(10),use_container_width=True)
     with st.expander('Chất lượng dữ liệu',expanded=False): st.dataframe(data['data_quality'],use_container_width=True,hide_index=True)
     with st.expander('Thông tin doanh nghiệp',expanded=False): st.dataframe(data['company_table'],use_container_width=True,hide_index=True)
-    st.divider(); render_market_regime(data['benchmark_prices'],data['market_universe_prices'],data['benchmark_ohlcv']['volume']); st.caption('Market Regime được xác định từ VNINDEX và Market Universe, độc lập với danh mục người dùng.')
+    st.divider(); render_market_regime(data['benchmark_prices'],None,data['benchmark_ohlcv']['volume']); st.caption('Market Regime được xác định từ VNINDEX OHLCV, độc lập với danh mục người dùng.')
