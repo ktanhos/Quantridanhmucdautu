@@ -50,9 +50,9 @@ def render_portfolio_optimization(returns,policy,benchmark_returns=None):
     except Exception as exc:st.error(str(exc));return
     st.subheader('7.1. So sánh các phương án phân bổ')
     summary=result['summary'].copy();summary['Lợi suất kỳ vọng']=summary['Lợi suất kỳ vọng'].map(_fmt_pct);summary['Độ biến động']=summary['Độ biến động'].map(_fmt_pct);summary['Sharpe Ratio']=summary['Sharpe Ratio'].map(lambda x:'N/A' if pd.isna(x) else f'{x:.2f}');st.dataframe(summary,use_container_width=True,hide_index=False)
-    if result['effective_max_weight']>result['requested_max_weight']+1e-9:
-        required=int(math.ceil(1/result['requested_max_weight']))
-        st.warning(f"Giới hạn hồ sơ là {result['requested_max_weight']:.0%}/mã nhưng tập đầu vào chỉ có {result['universe_size']} mã. Muốn vừa giữ giới hạn này vừa phân bổ đủ 100% vào cổ phiếu, cần ít nhất {required} mã. Vì vậy các phương án hiện tại có thể bị ép về tỷ trọng gần hoặc đúng bằng nhau. Đây là giới hạn của tập cổ phiếu, không phải kết luận rằng các mã có mức hấp dẫn như nhau.")
+    if not result.get('constraint_feasible',True):
+        required=int(result.get('required_assets',math.ceil(1/result['requested_max_weight'])))
+        st.warning(f"Không thể áp dụng đúng giới hạn {result['requested_max_weight']:.0%}/mã với chỉ {result['universe_size']} mã. Cần ít nhất {required} mã để thỏa mãn đồng thời giới hạn tỷ trọng và tổng danh mục 100%. Vì vậy Bước 7 đang hiển thị nghiệm mô hình không áp dụng giới hạn này để tham khảo và tránh việc tất cả phương án bị ép thành cùng một tỷ trọng. Không dùng các nghiệm này như khuyến nghị chính thức cho đến khi bổ sung đủ mã.")
     st.subheader('7.2. Phân bổ giữa các phương án')
     weights=result['weights'].copy();display=weights.copy()
     for col in display.columns:display[col]=display[col].map(lambda x:f'{x:.2%}')
