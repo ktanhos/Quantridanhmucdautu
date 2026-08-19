@@ -1,4 +1,5 @@
 import time
+from pathlib import Path
 import numpy as np
 import pandas as pd
 from vnstock import Market, Fundamental, Reference, register_user
@@ -8,28 +9,20 @@ def configure_vnstock(api_key=None):
     api_key=(api_key or '').strip()
     if not api_key:return {'authenticated':False,'message':'Đang dùng chế độ khách của Vnstock.'}
     register_user(api_key=api_key);return {'authenticated':True,'message':'Đã xác thực API key Vnstock.'}
-
 def pause_api():time.sleep(REQUEST_PAUSE)
-
-def cache_path(kind,key):
-    filename=f"{kind}_{str(key).replace('/','_').replace(chr(92),'_').replace(':','_')}.csv"
-    return CACHE_DIR / filename
-
+def cache_path(kind,key):return CACHE_DIR/(str(kind)+'_'+str(key).replace('/','_').replace('\\','_').replace(':','_')+'.csv')
 def normalize_columns(df):
     if df is None:return pd.DataFrame()
     out=df.copy();out.columns=[str(c).strip().lower().replace(' ','_').replace('-','_') for c in out.columns];return out
-
 def safe_float(value):
     try:
         if pd.isna(value):return np.nan
         if isinstance(value,str):value=value.replace(',','').replace('%','').strip()
         return float(value)
     except:return np.nan
-
 def find_col(df,candidates):
     if df.empty:return None
     return next((c for c in candidates if c in df.columns),None)
-
 def _extract_ohlcv(df):
     df=normalize_columns(df)
     if df.empty:return pd.DataFrame()
@@ -43,16 +36,21 @@ def _extract_ohlcv(df):
     for c in ['open','high','low','close','volume']:
         if c in out.columns:out[c]=pd.to_numeric(out[c],errors='coerce')
     return out[[c for c in ['open','high','low','close','volume'] if c in out.columns]]
-
 def _get_equity_ohlcv(ticker,start_date,end_date):
     market=Market();start_ts=pd.Timestamp(start_date).normalize();end_ts=pd.Timestamp(end_date).normalize();errors=[]
-    for call in [lambda:market.equity.ohlcv(symbol=ticker,start=start_ts.strftime('%Y-%m-%d'),end=end_ts.strftime('%Y-%m-%d'),interval='1D'),lambda:market.equity.ohlcv(symbol=ticker,start=start_ts.strftime('%Y-%m-%d'),end=end_ts.strftime('%Y-%m-%d'))]:
-        try:
-            out=_extract_ohlcv(call())
-            if not out.empty:return out[(out.index>=start_ts)&(out.index<=end_ts)]
-        except Exception as exc:errors.append(str(exc))
-    raise ValueError(f'Không lấy được dữ liệu {ticker}: '+ ' | '.join(errors[-2:]))
-
+    # Vnstock v4 in the deployed environment exposes equity as a callable object.
+    try:
+        raw=market.equity(ticker).ohlcv(start=start_ts.strftime('%Y-%m-%d'),end=end_ts.strftime('%Y-%m-%d'))
+        out=_extract_ohlcv(raw)
+        if not out.empty:return out[(out.index>=start_ts)&(out.index<=end_ts)]
+    except Exception as exc:errors.append(str(exc))
+    # Compatibility fallback for the alternate Unified UI form.
+    try:
+        raw=market.equity.ohlcv(symbol=ticker,start=start_ts.strftime('%Y-%m-%d'),end=end_ts.strftime('%Y-%m-%d'),interval='1D')
+        out=_extract_ohlcv(raw)
+        if not out.empty:return out[(out.index>=start_ts)&(out.index<=end_ts)]
+    except Exception as exc:errors.append(str(exc))
+    raise ValueError(f'Không lấy được dữ liệu {ticker}: '+' | '.join(errors[-2:]))
 def get_price_data(tickers,start_date,end_date):
     output={};errors={}
     for ticker in tickers:
@@ -69,7 +67,6 @@ def get_price_data(tickers,start_date,end_date):
     out=pd.DataFrame(output).sort_index();out.index=pd.to_datetime(out.index).normalize();out.index.name='Date'
     if out.empty:raise ValueError('Không lấy được dữ liệu giá cổ phiếu. Chi tiết từng mã: '+str(errors))
     return out
-
 def get_volume_data(tickers,start_date,end_date):
     output={}
     for ticker in tickers:
@@ -81,7 +78,6 @@ def get_volume_data(tickers,start_date,end_date):
             ohlcv[['volume']].rename_axis('Date').to_csv(path);output[ticker]=ohlcv['volume'];pause_api()
         except Exception as exc:print(f'Lỗi lấy khối lượng {ticker}: {exc}')
     out=pd.DataFrame(output).sort_index();out.index=pd.to_datetime(out.index).normalize();out.index.name='Date';return out
-
 def get_benchmark_ohlcv(benchmark,start_date,end_date):
     market=Market();start_ts=pd.Timestamp(start_date).normalize();end_ts=pd.Timestamp(end_date).normalize();pieces=[];cursor=start_ts
     while cursor<=end_ts:
@@ -90,14 +86,13 @@ def get_benchmark_ohlcv(benchmark,start_date,end_date):
             try:df=pd.read_csv(path,parse_dates=['Date'],index_col='Date')
             except:df=None
         if df is None or df.empty:
-            df=_extract_ohlcv(market.index(benchmark).ohlcv(start=cursor.strftime('%Y-%m-%d'),end=chunk_end.strftime('%Y-%m-%d'),interval='1D'))
+            try:df=_extract_ohlcv(market.index(benchmark).ohlcv(start=cursor.strftime('%Y-%m-%d'),end=chunk_end.strftime('%Y-%m-%d'),interval='1D'))
+            except Exception as exc:raise ValueError(f'Không lấy được OHLCV benchmark {benchmark}: {exc}')
             if df.empty:raise ValueError(f'Không lấy được OHLCV benchmark {benchmark}')
             df.rename_axis('Date').to_csv(path);pause_api()
         pieces.append(df);cursor=chunk_end+pd.Timedelta(days=1)
     out=pd.concat(pieces);out=out[~out.index.duplicated(keep='last')].sort_index();return out[(out.index>=start_ts)&(out.index<=end_ts)]
-
 def get_benchmark_prices(benchmark,start_date,end_date):return get_benchmark_ohlcv(benchmark,start_date,end_date)['close']
-
 def get_company_table(tickers,prices=None):
     ref=Reference();rows=[]
     try:sectors=normalize_columns(ref.industry.sectors())
@@ -118,12 +113,11 @@ def get_company_table(tickers,prices=None):
             rows.append({'Mã':ticker,'Ngành':industry,'Số CP lưu hành':shares,'Vốn hóa':cap})
         except Exception:rows.append({'Mã':ticker,'Ngành':np.nan,'Số CP lưu hành':np.nan,'Vốn hóa':np.nan})
     return pd.DataFrame(rows)
-
 def get_income_data(tickers):
     fun=Fundamental();rows=[]
     for ticker in tickers:
         try:
-            path=cache_path('income',ticker);income=normalize_columns(pd.read_csv(path)) if path.exists() else normalize_columns(fun.equity(ticker).income_statement(period='year',orient='report'))
+            path=cache_path('income',ticker);income=normalize_columns(pd.read_csv(path)) if path.exists() else normalize_columns(fun.equity.income_statement(symbol=ticker,period='year',orient='report'))
             if not path.exists():income.to_csv(path,index=False);pause_api()
             item_col=find_col(income,['item','item_name','name','indicator']);years=sorted([c for c in income.columns if str(c).isdigit() and len(str(c))==4],key=lambda x:int(str(x)),reverse=True);revenue=profit=np.nan;ry=py=None
             if item_col and years:
