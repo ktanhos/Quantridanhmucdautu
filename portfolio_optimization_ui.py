@@ -21,12 +21,14 @@ def render_portfolio_optimization(returns,policy,benchmark_returns=None):
     except Exception as exc:st.error(str(exc));return
     st.subheader('7.1. So sánh các phương án phân bổ')
     summary=result['summary'].copy();summary['Lợi suất kỳ vọng']=summary['Lợi suất kỳ vọng'].map(_fmt_pct);summary['Độ biến động']=summary['Độ biến động'].map(_fmt_pct);summary['Sharpe Ratio']=summary['Sharpe Ratio'].map(lambda x:'N/A' if pd.isna(x) else f'{x:.2f}');st.dataframe(summary,use_container_width=True,hide_index=False)
-    if result['effective_max_weight']>result['requested_max_weight']+1e-9:st.info(f"Tập cổ phiếu có {result['universe_size']} mã. Giới hạn {result['requested_max_weight']:.0%}/mã không thể thỏa mãn khi tổng tỷ trọng bằng 100%, nên mô hình dùng mức tối thiểu khả thi {result['effective_max_weight']:.2%}/mã.")
+    if result['effective_max_weight']>result['requested_max_weight']+1e-9:
+        required=int(pd.np.ceil(1/result['requested_max_weight'])) if False else int(__import__('math').ceil(1/result['requested_max_weight']))
+        st.warning(f"Giới hạn hiện tại là {result['requested_max_weight']:.0%}/mã nhưng tập đầu vào chỉ có {result['universe_size']} mã. Để vừa giữ giới hạn này vừa đủ 100% vốn, cần ít nhất {required} mã. Với {result['universe_size']} mã hiện tại, mức tối đa khả thi là {result['effective_max_weight']:.2%}/mã, vì vậy các phương án có thể bị ép về phân bổ gần hoặc đúng bằng nhau. Muốn mô hình phân bổ khác nhau rõ ràng hơn, nên mở rộng tập cổ phiếu hoặc điều chỉnh giới hạn tỷ trọng.")
     st.subheader('7.2. Phân bổ giữa các phương án')
     weights=result['weights'].copy();display=weights.copy()
     for col in display.columns:display[col]=display[col].map(lambda x:f'{x:.2%}')
     st.dataframe(display,use_container_width=True)
-    st.markdown('**Biểu đồ 7.1. So sánh tỷ trọng giữa các phương án**');st.bar_chart((weights*100).T,use_container_width=True);st.caption('Phân bổ tham chiếu chia đều vốn cho toàn bộ cổ phiếu. Các phương án còn lại là kết quả tối ưu hóa theo các mục tiêu khác nhau.')
+    st.markdown('**Biểu đồ 7.1. So sánh tỷ trọng giữa các phương án**');st.bar_chart((weights*100).T,use_container_width=True);st.caption('Phân bổ tham chiếu chia đều vốn cho toàn bộ cổ phiếu. Các phương án còn lại là kết quả tối ưu hóa theo các mục tiêu khác nhau. Nếu số mã quá ít so với giới hạn tỷ trọng, các phương án có thể trùng hoặc gần trùng nhau do ràng buộc toán học.')
     selected=st.selectbox('Chọn phương án để xem sâu',['Phân bổ tham chiếu','Minimum Variance','Optimal Risky','Maximum Return'],index=2,key='selected_portfolio_scenario')
     st.markdown(f'**7.3. Chi tiết phương án: {selected}**')
     selected_weights=weights[selected].sort_values(ascending=False);selected_table=selected_weights[selected_weights>1e-6].rename('Tỷ trọng').to_frame();selected_table['Số tiền dự kiến']=selected_table['Tỷ trọng']*float(st.session_state.get('investment_capital',0));selected_table['Tỷ trọng']=selected_table['Tỷ trọng'].map(lambda x:f'{x:.2%}');selected_table['Số tiền dự kiến']=selected_table['Số tiền dự kiến'].map(lambda x:f'{x:,.0f} VNĐ' if x>0 else 'N/A');st.dataframe(selected_table,use_container_width=True)
