@@ -29,40 +29,89 @@ def _historical_comparison(returns, benchmark_returns, weights):
 
 
 def _allocation_chart(weights):
-    chart_data = weights.mul(100).reset_index().rename(columns={"index": "Mã"})
-    chart_data = chart_data.melt(
-        id_vars="Mã", var_name="Phương án", value_name="Tỷ trọng"
+    """Biểu đồ sử dụng trực tiếp cùng dữ liệu tỷ trọng với bảng."""
+    chart_data = weights.copy().astype(float)
+    chart_data.index = chart_data.index.astype(str)
+    chart_data.columns = chart_data.columns.astype(str)
+
+    ticker_order = list(chart_data.index)
+    scenario_order = list(chart_data.columns)
+
+    chart_data = (
+        chart_data.mul(100.0)
+        .rename_axis("Mã")
+        .reset_index()
+        .melt(id_vars="Mã", var_name="Phương án", value_name="Tỷ trọng")
     )
+    chart_data["Tỷ trọng"] = pd.to_numeric(chart_data["Tỷ trọng"], errors="coerce")
+    chart_data = chart_data.dropna(subset=["Tỷ trọng"])
+
+    # Không tự điều chỉnh số liệu. Nếu tổng tỷ trọng lệch 100% thì báo lỗi dữ liệu.
+    sums = chart_data.groupby("Phương án", sort=False)["Tỷ trọng"].sum()
+    invalid = sums[~np.isclose(sums.values, 100.0, atol=1e-6)]
+    if not invalid.empty:
+        st.warning(
+            "Dữ liệu tỷ trọng của một hoặc nhiều phương án không bằng 100%. "
+            "Biểu đồ đang hiển thị đúng dữ liệu đầu vào và không tự điều chỉnh tỷ trọng."
+        )
 
     max_value = float(chart_data["Tỷ trọng"].max()) if not chart_data.empty else 0.0
-    # Chỉ thay đổi cách hiển thị: không ép trục lên 100% khi các tỷ trọng thực tế
-    # chỉ nằm quanh 10 đến 20%. Luôn chừa một khoảng đệm phía trên cột cao nhất.
     if max_value <= 0:
         chart_max = 10
     else:
+        # Trục chỉ cao hơn cột lớn nhất một khoảng nhỏ để dễ đọc, thay vì cố định 100%.
         chart_max = max(10, math.ceil((max_value * 1.15) / 5) * 5)
         chart_max = min(chart_max, 100)
 
-    return alt.Chart(chart_data).mark_bar(size=18).encode(
+    base = alt.Chart(chart_data)
+
+    bars = base.mark_bar(size=20).encode(
         x=alt.X(
             "Phương án:N",
             title="Phương án",
+            sort=scenario_order,
             axis=alt.Axis(labelAngle=0, labelLimit=140),
         ),
-        xOffset=alt.XOffset("Mã:N", title="Mã cổ phiếu"),
+        xOffset=alt.XOffset(
+            "Mã:N",
+            title=None,
+            sort=ticker_order,
+        ),
         y=alt.Y(
             "Tỷ trọng:Q",
             title="Tỷ trọng (%)",
+            aggregate=None,
             scale=alt.Scale(domain=[0, chart_max], nice=False),
-            axis=alt.Axis(format=".0f", tickCount=min(6, max(3, int(chart_max / 5) + 1))),
+            axis=alt.Axis(format=".0f", tickCount=max(3, int(chart_max / 5) + 1)),
         ),
-        color=alt.Color("Mã:N", title="Mã cổ phiếu"),
+        color=alt.Color(
+            "Mã:N",
+            title="Mã cổ phiếu",
+            sort=ticker_order,
+        ),
         tooltip=[
             alt.Tooltip("Phương án:N", title="Phương án"),
             alt.Tooltip("Mã:N", title="Mã cổ phiếu"),
             alt.Tooltip("Tỷ trọng:Q", title="Tỷ trọng", format=".2f"),
         ],
-    ).properties(height=380)
+    )
+
+    labels = base.mark_text(
+        dy=-8,
+        fontSize=10,
+        color="white",
+    ).encode(
+        x=alt.X("Phương án:N", sort=scenario_order),
+        xOffset=alt.XOffset("Mã:N", sort=ticker_order),
+        y=alt.Y(
+            "Tỷ trọng:Q",
+            aggregate=None,
+            scale=alt.Scale(domain=[0, chart_max], nice=False),
+        ),
+        text=alt.Text("Tỷ trọng:Q", format=".1f"),
+    )
+
+    return (bars + labels).properties(height=400)
 
 
 def _scenario_metrics_table(result, weights, benchmark_returns):
@@ -234,7 +283,7 @@ def render_portfolio_optimization(returns, policy, benchmark_returns=None):
     st.markdown("**Biểu đồ 7.1. So sánh tỷ trọng giữa các phương án**")
     st.altair_chart(_allocation_chart(weights), use_container_width=True)
     st.caption(
-        "Các cột được đặt cạnh nhau theo từng phương án để so sánh trực tiếp tỷ trọng từng mã. Tổng tỷ trọng của mỗi phương án vẫn bằng 100%."
+        "Biểu đồ sử dụng trực tiếp cùng bộ tỷ trọng với bảng phía trên. Số trên mỗi cột là tỷ trọng thực tế của từng mã; tổng mỗi phương án được kiểm tra bằng 100%."
     )
 
     scenarios = [
