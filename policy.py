@@ -23,27 +23,29 @@ class InvestmentPolicy:
 
 
 def risk_label(score: int) -> str:
-    if score <= 20:
-        return "Rất thận trọng"
-    if score <= 40:
+    if score <= 33:
         return "Thận trọng"
-    if score <= 60:
+    if score <= 66:
         return "Cân bằng"
-    if score <= 80:
-        return "Tăng trưởng"
-    return "Tăng trưởng cao"
+    return "Tăng trưởng"
+
+
+def risk_profile_description(score: int) -> str:
+    if score <= 33:
+        return "Ưu tiên hạn chế biến động và mức giảm của danh mục. Phù hợp nếu bạn khó chấp nhận việc danh mục giảm mạnh trong ngắn hạn."
+    if score <= 66:
+        return "Chấp nhận biến động ở mức vừa phải để đổi lấy khả năng tăng trưởng dài hạn tốt hơn."
+    return "Chấp nhận biến động lớn hơn và có thể chịu các giai đoạn giảm mạnh để tìm kiếm mức tăng trưởng cao hơn."
 
 
 def validate_policy(policy: InvestmentPolicy) -> list[str]:
     errors: list[str] = []
     if not 0 <= policy.target_return <= 100:
         errors.append("Lợi nhuận mục tiêu phải nằm trong khoảng 0 đến 100 phần trăm.")
-    if policy.risk_capacity < policy.risk_tolerance - 20:
-        errors.append("Khả năng chịu rủi ro đang thấp hơn đáng kể so với khẩu vị rủi ro. Hãy kiểm tra lại hai câu trả lời.")
+    if not 0 <= policy.risk_tolerance <= 100 or not 0 <= policy.risk_capacity <= 100:
+        errors.append("Mức chấp nhận biến động phải nằm trong khoảng 0 đến 100.")
     if not 0 < policy.max_single_stock_weight <= 100:
         errors.append("Giới hạn một cổ phiếu phải lớn hơn 0 và không quá 100 phần trăm.")
     if not 0 < policy.max_sector_weight <= 100:
         errors.append("Giới hạn một ngành phải lớn hơn 0 và không quá 100 phần trăm.")
-    if policy.emergency_cash_percent < 0 or policy.emergency_cash_percent > 100:
-        errors.append("Tỷ lệ tiền dự phòng phải nằm trong khoảng 0 đến 100 phần trăm.")
     return errors
