@@ -28,7 +28,7 @@ def downside_deviation(series, target=0.0):
     return float(np.sqrt(np.mean(downside ** 2) * 252))
 
 
-def calculate_portfolio_risk(returns, weights, benchmark_returns=None, risk_free_rate=0.0):
+def calculate_portfolio_risk(returns, weights, benchmark_returns=None, risk_free_rate=0.04):
     r = _clean_returns(returns)
     w = pd.Series(weights, dtype=float).reindex(r.columns).fillna(0.0)
     if w.sum() == 0:
@@ -40,8 +40,7 @@ def calculate_portfolio_risk(returns, weights, benchmark_returns=None, risk_free
 
     rf = float(risk_free_rate)
     daily_rf = (1.0 + rf) ** (1 / 252) - 1 if rf > -1 else rf / 252
-    mean_daily = float(pr.mean())
-    annual_arithmetic_return = mean_daily * 252
+    annual_arithmetic_return = float(pr.mean() * 252)
     annual_geometric_return = float((1 + pr).prod() ** (252 / len(pr)) - 1)
     annual_vol = float(pr.std(ddof=1) * np.sqrt(252))
     sharpe = (annual_arithmetic_return - rf) / annual_vol if annual_vol > 0 else np.nan
@@ -63,14 +62,11 @@ def calculate_portfolio_risk(returns, weights, benchmark_returns=None, risk_free
         if len(j) >= 20 and j["benchmark"].var(ddof=1) > 0:
             p = j["portfolio"]
             bm = j["benchmark"]
-            cov_pb = p.cov(bm)
-            var_b = bm.var(ddof=1)
-            beta = float(cov_pb / var_b)
+            beta = float(p.cov(bm) / bm.var(ddof=1))
             r_squared = float(p.corr(bm) ** 2)
             active = p - bm
             tracking_error = float(active.std(ddof=1) * np.sqrt(252))
-            active_mean_annual = float(active.mean() * 252)
-            information_ratio = active_mean_annual / tracking_error if tracking_error > 0 else np.nan
+            information_ratio = float(active.mean() * 252 / tracking_error) if tracking_error > 0 else np.nan
             portfolio_ann = float((1 + p).prod() ** (252 / len(j)) - 1)
             benchmark_annual_return = float((1 + bm).prod() ** (252 / len(j)) - 1)
             active_return = portfolio_ann - benchmark_annual_return
