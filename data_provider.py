@@ -36,17 +36,18 @@ def _extract_ohlcv(df):
     for c in ['open','high','low','close','volume']:
         if c in out.columns:out[c]=pd.to_numeric(out[c],errors='coerce')
     return out[[c for c in ['open','high','low','close','volume'] if c in out.columns]]
+def _required_count(start_date,end_date):
+    days=max((pd.Timestamp(end_date).normalize()-pd.Timestamp(start_date).normalize()).days+1,1)
+    return max(int(days*1.6)+50,300)
 def _get_equity_ohlcv(ticker,start_date,end_date):
-    market=Market();start_ts=pd.Timestamp(start_date).normalize();end_ts=pd.Timestamp(end_date).normalize();errors=[]
-    # Vnstock v4 in the deployed environment exposes equity as a callable object.
+    market=Market();start_ts=pd.Timestamp(start_date).normalize();end_ts=pd.Timestamp(end_date).normalize();count=_required_count(start_ts,end_ts);errors=[]
     try:
-        raw=market.equity(ticker).ohlcv(start=start_ts.strftime('%Y-%m-%d'),end=end_ts.strftime('%Y-%m-%d'))
+        raw=market.equity(ticker).ohlcv(start=start_ts.strftime('%Y-%m-%d'),end=end_ts.strftime('%Y-%m-%d'),count=count,interval='1D')
         out=_extract_ohlcv(raw)
         if not out.empty:return out[(out.index>=start_ts)&(out.index<=end_ts)]
     except Exception as exc:errors.append(str(exc))
-    # Compatibility fallback for the alternate Unified UI form.
     try:
-        raw=market.equity.ohlcv(symbol=ticker,start=start_ts.strftime('%Y-%m-%d'),end=end_ts.strftime('%Y-%m-%d'),interval='1D')
+        raw=market.equity.ohlcv(symbol=ticker,start=start_ts.strftime('%Y-%m-%d'),end=end_ts.strftime('%Y-%m-%d'),count=count,interval='1D')
         out=_extract_ohlcv(raw)
         if not out.empty:return out[(out.index>=start_ts)&(out.index<=end_ts)]
     except Exception as exc:errors.append(str(exc))
@@ -86,7 +87,8 @@ def get_benchmark_ohlcv(benchmark,start_date,end_date):
             try:df=pd.read_csv(path,parse_dates=['Date'],index_col='Date')
             except:df=None
         if df is None or df.empty:
-            try:df=_extract_ohlcv(market.index(benchmark).ohlcv(start=cursor.strftime('%Y-%m-%d'),end=chunk_end.strftime('%Y-%m-%d'),interval='1D'))
+            count=max(int((chunk_end-cursor).days*1.6)+50,200)
+            try:df=_extract_ohlcv(market.index(benchmark).ohlcv(start=cursor.strftime('%Y-%m-%d'),end=chunk_end.strftime('%Y-%m-%d'),count=count,interval='1D'))
             except Exception as exc:raise ValueError(f'Không lấy được OHLCV benchmark {benchmark}: {exc}')
             if df.empty:raise ValueError(f'Không lấy được OHLCV benchmark {benchmark}')
             df.rename_axis('Date').to_csv(path);pause_api()
