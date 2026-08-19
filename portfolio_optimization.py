@@ -18,9 +18,7 @@ def _feasible_bounds(n, max_weight):
     if max_weight <= 0:
         raise ValueError("Giới hạn tỷ trọng phải lớn hơn 0.")
     if n * max_weight < 1 - 1e-10:
-        raise ValueError(
-            f"Không thể phân bổ đủ 100% với {n} mã và giới hạn {max_weight:.0%}/mã."
-        )
+        raise ValueError(f"Không thể phân bổ đủ 100% với {n} mã và giới hạn {max_weight:.0%}/mã.")
     return [(0.0, max_weight)] * n
 
 
@@ -72,7 +70,7 @@ def _project_weights(w, max_weight):
     return result / result.sum()
 
 
-def _metrics(w, mu, cov, rf=0.0):
+def _metrics(w, mu, cov, rf=0.04):
     ret = float(w @ mu)
     vol = float(np.sqrt(max(w @ cov @ w, 0.0)))
     sh = (ret - rf) / vol if vol > 0 else np.nan
@@ -83,14 +81,7 @@ def _solve_slsqp(objective, x0, bounds, constraints, fallback):
     if minimize is None:
         return fallback
     try:
-        result = minimize(
-            objective,
-            x0=x0,
-            method="SLSQP",
-            bounds=bounds,
-            constraints=constraints,
-            options={"maxiter": 1000, "ftol": 1e-10},
-        )
+        result = minimize(objective, x0=x0, method="SLSQP", bounds=bounds, constraints=constraints, options={"maxiter": 1000, "ftol": 1e-10})
         if result.success and np.isfinite(result.fun):
             w = np.asarray(result.x, dtype=float)
             if abs(w.sum() - 1.0) < 1e-6:
@@ -100,45 +91,28 @@ def _solve_slsqp(objective, x0, bounds, constraints, fallback):
     return fallback
 
 
-def optimize_portfolios(
-    returns,
-    max_weight=0.10,
-    risk_free_rate=0.0,
-    target_return=None,
-):
+def optimize_portfolios(returns, max_weight=0.10, risk_free_rate=0.04, target_return=None):
     r, mu, cov = _annual_stats(returns)
     n = len(mu)
     names = list(mu.index)
     if n < 2:
         raise ValueError("Cần ít nhất 2 cổ phiếu để tối ưu hóa danh mục.")
-
     requested_max_weight = float(max_weight)
     constraint_feasible = n * requested_max_weight >= 1 - 1e-10
-    effective_max_weight = requested_max_weight if constraint_feasible else 1.0
+    effective_max_weight = requested_max_weight
     if not constraint_feasible:
-        raise ValueError(
-            f"Không thể xây dựng danh mục 100% cổ phiếu với {n} mã và giới hạn {requested_max_weight:.0%}/mã. "
-            f"Cần ít nhất {int(np.ceil(1 / requested_max_weight))} mã."
-        )
+        raise ValueError(f"Không thể xây dựng danh mục 100% cổ phiếu với {n} mã và giới hạn {requested_max_weight:.0%}/mã. Cần ít nhất {int(np.ceil(1 / requested_max_weight))} mã.")
 
     bounds = _feasible_bounds(n, effective_max_weight)
     x0 = _initial_weights(n, effective_max_weight)
     equality = {"type": "eq", "fun": lambda w: np.sum(w) - 1.0}
     constraints = [equality]
-
     cov_values = cov.values
     mu_values = mu.values
 
     w_mv_fallback = _project_weights(np.linalg.pinv(cov_values + np.eye(n) * 1e-8) @ np.ones(n), effective_max_weight)
-    w_mv = _solve_slsqp(
-        lambda w: float(w @ cov_values @ w),
-        x0,
-        bounds,
-        constraints,
-        w_mv_fallback,
-    )
+    w_mv = _solve_slsqp(lambda w: float(w @ cov_values @ w), x0, bounds, constraints, w_mv_fallback)
 
-    positive_mu = np.maximum(mu_values, 0.0)
     order = np.argsort(mu_values)[::-1]
     w_max = np.zeros(n)
     remaining = 1.0
@@ -154,51 +128,21 @@ def optimize_portfolios(
         ret, vol, _ = _metrics(w, mu_values, cov_values, risk_free_rate)
         return -(ret - risk_free_rate) / vol if vol > 1e-12 else 1e6
 
-    w_opt_fallback = w_mv.copy()
-    w_opt = _solve_slsqp(
-        neg_sharpe,
-        x0,
-        bounds,
-        constraints,
-        w_opt_fallback,
-    )
-
+    w_opt = _solve_slsqp(neg_sharpe, x0, bounds, constraints, w_mv.copy())
     target_feasible = False
     target_value = None if target_return is None else float(target_return)
     if target_value is not None:
-        target_constraint = {
-            "type": "ineq",
-            "fun": lambda w, target=target_value: float(w @ mu_values - target),
-        }
-        w_target = _solve_slsqp(
-            lambda w: float(w @ cov_values @ w),
-            x0,
-            bounds,
-            [equality, target_constraint],
-            w_mv,
-        )
+        target_constraint = {"type": "ineq", "fun": lambda w, target=target_value: float(w @ mu_values - target)}
+        w_target = _solve_slsqp(lambda w: float(w @ cov_values @ w), x0, bounds, [equality, target_constraint], w_mv)
         if float(w_target @ mu_values) >= target_value - 1e-6:
             w_opt = w_target
             target_feasible = True
 
-    portfolios = [
-        ("Phân bổ tham chiếu", np.ones(n) / n),
-        ("Minimum Variance", w_mv),
-        ("Optimal Risky", w_opt),
-        ("Maximum Return", w_max),
-    ]
-
+    portfolios = [("Phân bổ tham chiếu", np.ones(n) / n), ("Minimum Variance", w_mv), ("Optimal Risky", w_opt), ("Maximum Return", w_max)]
     rows = []
     for label, w in portfolios:
         ret, vol, sh = _metrics(w, mu_values, cov_values, risk_free_rate)
-        rows.append(
-            {
-                "Danh mục": label,
-                "Lợi suất ước tính": ret,
-                "Độ biến động ước tính": vol,
-                "Sharpe Ratio ước tính": sh,
-            }
-        )
+        rows.append({"Danh mục": label, "Lợi suất ước tính": ret, "Độ biến động ước tính": vol, "Sharpe Ratio ước tính": sh})
 
     return {
         "returns": r,
@@ -213,4 +157,5 @@ def optimize_portfolios(
         "required_assets": int(np.ceil(1 / requested_max_weight)),
         "target_feasible": target_feasible,
         "target_return": target_value,
+        "risk_free_rate": float(risk_free_rate),
     }
