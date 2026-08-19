@@ -9,7 +9,7 @@ def _annual_stats(returns):
 def _project_weights(w,max_weight):
     w=np.maximum(np.asarray(w,dtype=float),0.0);n=len(w)
     if n==0:return w
-    max_weight=max(float(max_weight),1.0/n)
+    max_weight=min(max(float(max_weight),1.0/n),1.0)
     if w.sum()<=0:w=np.ones(n)/n
     result=np.zeros(n);active=np.ones(n,dtype=bool);remaining=1.0
     for _ in range(n+1):
@@ -28,7 +28,12 @@ def _metrics(w,mu,cov,rf=0):
 def optimize_portfolios(returns,max_weight=0.10,risk_free_rate=0.0,target_return=None):
     r,mu,cov=_annual_stats(returns);n=len(mu);names=list(mu.index)
     if n<2:raise ValueError('Cần ít nhất 2 cổ phiếu để tối ưu hóa danh mục.')
-    requested_max_weight=float(max_weight);effective_max_weight=max(requested_max_weight,1.0/n)
+    requested_max_weight=float(max_weight)
+    required_assets=int(np.ceil(1/requested_max_weight)) if requested_max_weight>0 else n
+    constraint_feasible=n>=required_assets
+    # Nếu tập cổ phiếu quá nhỏ, không được tự ý nâng giới hạn hồ sơ rồi gọi đó là nghiệm tối ưu.
+    # Chuyển sang nghiệm không ràng buộc chỉ để tham khảo; Bước 8 sẽ không dùng nghiệm này làm khuyến nghị chính thức.
+    effective_max_weight=requested_max_weight if constraint_feasible else 1.0
     inv=np.linalg.pinv(cov.values+np.eye(n)*1e-8);w_mv=_project_weights(inv@np.ones(n),effective_max_weight)
     w_equal=np.ones(n)/n;w_mr=_project_weights(np.maximum(mu.values,0),effective_max_weight)
     w_max=np.zeros(n);w_max[int(np.nanargmax(mu.values))]=1;w_max=_project_weights(w_max,effective_max_weight)
@@ -47,4 +52,4 @@ def optimize_portfolios(returns,max_weight=0.10,risk_free_rate=0.0,target_return
     rows=[]
     for label,w in portfolios:
         ret,vol,sh=_metrics(w,mu.values,cov.values,risk_free_rate);rows.append({'Danh mục':label,'Lợi suất kỳ vọng':ret,'Độ biến động':vol,'Sharpe Ratio':sh})
-    return {'returns':r,'expected_returns':mu,'covariance':cov,'summary':pd.DataFrame(rows).set_index('Danh mục'),'weights':pd.DataFrame({label:w for label,w in portfolios},index=names),'requested_max_weight':requested_max_weight,'effective_max_weight':effective_max_weight,'universe_size':n}
+    return {'returns':r,'expected_returns':mu,'covariance':cov,'summary':pd.DataFrame(rows).set_index('Danh mục'),'weights':pd.DataFrame({label:w for label,w in portfolios},index=names),'requested_max_weight':requested_max_weight,'effective_max_weight':effective_max_weight,'universe_size':n,'constraint_feasible':constraint_feasible,'required_assets':required_assets}
