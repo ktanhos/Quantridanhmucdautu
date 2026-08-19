@@ -5,6 +5,7 @@ from data_pipeline import load_market_dataset
 from data_provider import configure_vnstock
 from market_regime_ui import render_market_regime
 from portfolio_risk_ui import render_portfolio_risk
+from portfolio_optimization_ui import render_portfolio_optimization
 from policy import InvestmentPolicy, risk_label, validate_policy
 st.set_page_config(page_title=APP_NAME,page_icon='📊',layout='wide',initial_sidebar_state='expanded')
 st.title('Quản trị danh mục đầu tư')
@@ -44,3 +45,4 @@ if 'market_data' in st.session_state:
     with st.expander('Thông tin doanh nghiệp',expanded=False):st.dataframe(data['company_table'],use_container_width=True,hide_index=True)
     st.divider();render_market_regime(data['benchmark_prices'],None,data['benchmark_ohlcv']['volume']);st.caption('Market Regime được xác định từ VNINDEX OHLCV, độc lập với danh mục người dùng.')
     st.divider();render_portfolio_risk(data['returns'],data['benchmark_returns'])
+    st.divider();render_portfolio_optimization(data['returns'],st.session_state.get('policy') or {})
