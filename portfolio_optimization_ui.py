@@ -1,3 +1,4 @@
+import math
 import streamlit as st
 import pandas as pd
 from portfolio_optimization import optimize_portfolios
@@ -22,7 +23,7 @@ def render_portfolio_optimization(returns,policy,benchmark_returns=None):
     st.subheader('7.1. So sánh các phương án phân bổ')
     summary=result['summary'].copy();summary['Lợi suất kỳ vọng']=summary['Lợi suất kỳ vọng'].map(_fmt_pct);summary['Độ biến động']=summary['Độ biến động'].map(_fmt_pct);summary['Sharpe Ratio']=summary['Sharpe Ratio'].map(lambda x:'N/A' if pd.isna(x) else f'{x:.2f}');st.dataframe(summary,use_container_width=True,hide_index=False)
     if result['effective_max_weight']>result['requested_max_weight']+1e-9:
-        required=int(pd.np.ceil(1/result['requested_max_weight'])) if False else int(__import__('math').ceil(1/result['requested_max_weight']))
+        required=int(math.ceil(1/result['requested_max_weight']))
         st.warning(f"Giới hạn hiện tại là {result['requested_max_weight']:.0%}/mã nhưng tập đầu vào chỉ có {result['universe_size']} mã. Để vừa giữ giới hạn này vừa đủ 100% vốn, cần ít nhất {required} mã. Với {result['universe_size']} mã hiện tại, mức tối đa khả thi là {result['effective_max_weight']:.2%}/mã, vì vậy các phương án có thể bị ép về phân bổ gần hoặc đúng bằng nhau. Muốn mô hình phân bổ khác nhau rõ ràng hơn, nên mở rộng tập cổ phiếu hoặc điều chỉnh giới hạn tỷ trọng.")
     st.subheader('7.2. Phân bổ giữa các phương án')
     weights=result['weights'].copy();display=weights.copy()
