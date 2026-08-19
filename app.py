@@ -7,6 +7,7 @@ from market_regime_ui import render_market_regime
 from portfolio_risk_ui import render_portfolio_risk
 from portfolio_optimization_ui import render_portfolio_optimization
 from portfolio_recommendation_ui import render_recommendation
+from portfolio_rebalancing_ui import render_rebalancing
 from policy import InvestmentPolicy, risk_label, validate_policy
 st.set_page_config(page_title=APP_NAME,page_icon='📊',layout='wide',initial_sidebar_state='expanded')
 st.title('Quản trị danh mục đầu tư');st.caption('Danh mục cổ phiếu Việt Nam và tài sản phòng thủ. Market Regime được xác định độc lập với danh mục người dùng.')
@@ -47,3 +48,4 @@ if 'market_data' in st.session_state:
     st.divider();render_portfolio_risk(data['returns'],data['benchmark_returns'])
     st.divider();render_portfolio_optimization(data['returns'],st.session_state.get('policy') or {})
     if 'optimization_result' in st.session_state:render_recommendation(data['returns'],st.session_state['optimization_result'],st.session_state.get('regime_result'),st.session_state.get('policy') or {})
+    if 'optimization_result' in st.session_state:render_rebalancing(data['returns'],st.session_state['optimization_result'])
