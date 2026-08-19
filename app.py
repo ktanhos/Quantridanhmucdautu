@@ -38,7 +38,10 @@ policy=InvestmentPolicy(investor_goal=investor_goal,target_return=target_return/
 if errors:
     for e in errors:st.warning(e)
 else:st.success(f'Hồ sơ hợp lệ. Mục tiêu {target_return:.1f}% mỗi năm. Khẩu vị rủi ro {risk_label(risk_tolerance)}.')
-if st.button('LƯU HỒ SƠ ĐẦU TƯ',type='primary',use_container_width=True,disabled=bool(errors),key='save_policy'):st.session_state['policy']=policy.to_dict();st.session_state['investment_capital']=investment_capital;st.session_state['saved_margin_rate']=margin_rate/100;st.success('Đã lưu hồ sơ và nguồn vốn.')
+if st.button('LƯU HỒ SƠ ĐẦU TƯ',type='primary',use_container_width=True,disabled=bool(errors),key='save_policy'):
+    st.session_state['policy']=policy.to_dict();st.session_state['investment_capital']=investment_capital;st.session_state['saved_margin_rate']=margin_rate/100
+    for key in ['optimization_result','recommended_portfolio','recommendation_result','target_equity','portfolio_performance']:st.session_state.pop(key,None)
+    st.success('Đã lưu hồ sơ và nguồn vốn. Các bước phía sau sẽ tính lại theo hồ sơ mới.')
 
 st.divider();st.header('Bước 3. Lấy dữ liệu');st.caption('Hệ thống xem xét tập cổ phiếu đầu vào và tự xây dựng các phương án phân bổ. Người dùng không cần nhập trước số mã hoặc tỷ trọng. Market Regime dùng VNINDEX OHLCV theo ngày, trong đó có khối lượng VNINDEX.')
 col1,col2=st.columns(2)
@@ -52,6 +55,7 @@ if st.button('LẤY DỮ LIỆU',type='secondary',use_container_width=True,key='
     configure_vnstock(api_key)
     try:
         with st.spinner('Đang lấy dữ liệu danh mục và VNINDEX OHLCV...'):st.session_state['market_data']=load_market_dataset(tickers,pd.Timestamp(start_date),pd.Timestamp(end_date),benchmark_data or DEFAULT_BENCHMARK)
+        for key in ['optimization_result','recommended_portfolio','recommendation_result','target_equity','portfolio_performance']:st.session_state.pop(key,None)
     except Exception as exc:st.error(f'{type(exc).__name__}: {exc}');st.stop()
 
 if 'market_data' in st.session_state:
