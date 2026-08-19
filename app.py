@@ -7,6 +7,7 @@ from market_regime_ui import render_market_regime
 from portfolio_risk_ui import render_portfolio_risk
 from portfolio_optimization_ui import render_portfolio_optimization
 from portfolio_recommendation_ui import render_recommendation
+from portfolio_holdings_ui import render_holdings
 from portfolio_rebalancing_ui import render_rebalancing
 from policy import InvestmentPolicy, risk_label, validate_policy
 st.set_page_config(page_title=APP_NAME,page_icon='📊',layout='wide',initial_sidebar_state='expanded')
@@ -45,7 +46,8 @@ if 'market_data' in st.session_state:
     with st.expander('Chất lượng dữ liệu',expanded=False):st.dataframe(data['data_quality'],use_container_width=True,hide_index=True)
     with st.expander('Thông tin doanh nghiệp',expanded=False):st.dataframe(data['company_table'],use_container_width=True,hide_index=True)
     st.divider();render_market_regime(data['benchmark_prices'],None,data['benchmark_ohlcv']['volume']);st.caption('Market Regime được xác định từ VNINDEX OHLCV, độc lập với danh mục người dùng.')
+    st.divider();render_holdings(data['prices'])
     st.divider();render_portfolio_risk(data['returns'],data['benchmark_returns'])
     st.divider();render_portfolio_optimization(data['returns'],st.session_state.get('policy') or {})
     if 'optimization_result' in st.session_state:render_recommendation(data['returns'],st.session_state['optimization_result'],st.session_state.get('regime_result'),st.session_state.get('policy') or {})
-    if 'optimization_result' in st.session_state:render_rebalancing(data['returns'],st.session_state['optimization_result'])
+    if 'optimization_result' in st.session_state:render_rebalancing(st.session_state.get('current_weights'),st.session_state['optimization_result'])
