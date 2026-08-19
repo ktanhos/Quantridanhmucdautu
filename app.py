@@ -26,7 +26,7 @@ st.header('Bước 2. Hồ sơ và nguồn vốn đầu tư')
 goals={'Bảo toàn vốn':'Ưu tiên hạn chế thua lỗ.','Tăng trưởng ổn định':'Chấp nhận biến động vừa phải.','Tăng trưởng cao':'Chấp nhận biến động lớn hơn.'}
 investor_goal=st.radio('Mục tiêu chính',list(goals),horizontal=True,key='investor_goal');st.caption(goals[investor_goal])
 c1,c2=st.columns(2)
-with c1:investment_capital=st.number_input('Vốn đầu tư dự kiến (VNĐ)',min_value=0.,value=100000000.,step=10000000.,format='%.0f',key='investment_capital')
+with c1:investment_capital=st.number_input('Vốn đầu tư dự kiến (VNĐ)',min_value=0.,value=100000000.,step=10000000.,format='%.0f',key='investment_capital_input')
 with c2:target_return=st.number_input('Lợi nhuận mục tiêu mỗi năm (%)',0.,100.,12.,.5,format='%.1f',key='target_return')
 risk_tolerance=st.slider('Khẩu vị rủi ro',0,100,50,5,key='risk_tolerance');risk_capacity=st.slider('Khả năng chịu rủi ro',0,100,50,5,key='risk_capacity');horizon_labels={1:'Dưới 2 năm',3:'2 đến 5 năm',7:'5 đến 10 năm',15:'Trên 10 năm'};investment_horizon_years=st.select_slider('Thời hạn đầu tư',options=list(horizon_labels),value=7,format_func=lambda x:horizon_labels[x],key='investment_horizon');liquidity_need=st.selectbox('Nhu cầu sử dụng tiền',['Cao','Trung bình','Thấp'],key='liquidity_need')
 c1,c2,c3=st.columns(3)
