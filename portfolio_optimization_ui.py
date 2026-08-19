@@ -26,6 +26,22 @@ def _allocation_chart(weights):
         tooltip=[alt.Tooltip('Phương án:N'),alt.Tooltip('Mã:N'),alt.Tooltip('Tỷ trọng:Q',format='.2f')]
     ).properties(height=420)
 
+def _render_scenario(label,weights,returns,benchmark_returns,investment_capital):
+    selected_weights=weights[label].sort_values(ascending=False)
+    selected_table=selected_weights[selected_weights>1e-6].rename('Tỷ trọng').to_frame()
+    selected_table['Số tiền dự kiến']=selected_table['Tỷ trọng']*float(investment_capital)
+    selected_table['Tỷ trọng']=selected_table['Tỷ trọng'].map(lambda x:f'{x:.2%}')
+    selected_table['Số tiền dự kiến']=selected_table['Số tiền dự kiến'].map(lambda x:f'{x:,.0f} VNĐ' if x>0 else 'N/A')
+    st.markdown(f'**Phương án đang xem: {label}**')
+    st.dataframe(selected_table,use_container_width=True)
+    st.markdown('**Lịch sử phương án so với VNINDEX**')
+    historical=_historical_comparison(returns,benchmark_returns,weights[label]) if benchmark_returns is not None else pd.DataFrame()
+    if historical.empty:st.info('Chưa đủ dữ liệu chung giữa phương án và VNINDEX để vẽ biểu đồ lịch sử.')
+    else:
+        st.line_chart(historical,use_container_width=True)
+        st.caption('Chỉ sử dụng dữ liệu lịch sử. Cả phương án và VNINDEX được quy đổi về 100 tại ngày đầu tiên có dữ liệu chung. Đây là so sánh quá khứ, không phải dự báo lợi nhuận tương lai.')
+        st.caption(f"Giai đoạn so sánh: {historical.index.min().strftime('%d/%m/%Y')} đến {historical.index.max().strftime('%d/%m/%Y')}.")
+
 def render_portfolio_optimization(returns,policy,benchmark_returns=None):
     st.header('Bước 7. Tối ưu hóa danh mục')
     st.caption('Xây dựng các phương án phân bổ từ dữ liệu lịch sử. Phân bổ tham chiếu chỉ là mốc so sánh, không phải danh mục nhà đầu tư đang nắm giữ.')
@@ -43,14 +59,11 @@ def render_portfolio_optimization(returns,policy,benchmark_returns=None):
     st.dataframe(display,use_container_width=True)
     st.markdown('**Biểu đồ 7.1. So sánh tỷ trọng giữa các phương án**')
     st.altair_chart(_allocation_chart(weights),use_container_width=True)
-    st.caption('Biểu đồ dùng các cột đứng cạnh nhau thay vì cột chồng, để nhìn trực tiếp tỷ trọng từng mã trong từng phương án. Tổng tỷ trọng của mỗi phương án vẫn bằng 100%.')
-    selected=st.selectbox('Chọn phương án để xem sâu',['Phân bổ tham chiếu','Minimum Variance','Optimal Risky','Maximum Return'],index=2,key='selected_portfolio_scenario')
-    st.markdown(f'**7.3. Chi tiết phương án: {selected}**')
-    selected_weights=weights[selected].sort_values(ascending=False);selected_table=selected_weights[selected_weights>1e-6].rename('Tỷ trọng').to_frame();selected_table['Số tiền dự kiến']=selected_table['Tỷ trọng']*float(st.session_state.get('investment_capital',0));selected_table['Tỷ trọng']=selected_table['Tỷ trọng'].map(lambda x:f'{x:.2%}');selected_table['Số tiền dự kiến']=selected_table['Số tiền dự kiến'].map(lambda x:f'{x:,.0f} VNĐ' if x>0 else 'N/A');st.dataframe(selected_table,use_container_width=True)
-    st.markdown('**7.4. Lịch sử phương án so với VNINDEX**')
-    historical=_historical_comparison(returns,benchmark_returns,weights[selected]) if benchmark_returns is not None else pd.DataFrame()
-    if historical.empty:st.info('Chưa đủ dữ liệu chung giữa phương án và VNINDEX để vẽ biểu đồ lịch sử.')
-    else:
-        st.line_chart(historical,use_container_width=True);st.caption('Chỉ sử dụng dữ liệu lịch sử. Cả phương án được chọn và VNINDEX được quy đổi về 100 tại ngày đầu tiên có dữ liệu chung. Đây là so sánh quá khứ, không phải dự báo lợi nhuận tương lai.');st.caption(f"Giai đoạn so sánh: {historical.index.min().strftime('%d/%m/%Y')} đến {historical.index.max().strftime('%d/%m/%Y')}.")
-    st.markdown('**7.5. Cách hiểu các phương án**');st.write('Phân bổ tham chiếu: chia đều để tạo mốc so sánh. Minimum Variance: ưu tiên giảm biến động danh mục. Optimal Risky: tìm sự cân bằng giữa lợi suất kỳ vọng và rủi ro. Maximum Return: ưu tiên lợi suất kỳ vọng nhưng vẫn chịu giới hạn tập trung.')
+    st.caption('Các cột được đặt cạnh nhau theo từng phương án để so sánh trực tiếp tỷ trọng từng mã. Tổng tỷ trọng của mỗi phương án vẫn bằng 100%.')
+    scenarios=['Phân bổ tham chiếu','Minimum Variance','Optimal Risky','Maximum Return']
+    tabs=st.tabs(scenarios)
+    investment_capital=float(st.session_state.get('investment_capital',0))
+    for tab,label in zip(tabs,scenarios):
+        with tab:_render_scenario(label,weights,returns,benchmark_returns,investment_capital)
     st.session_state['optimization_result']=result
+    st.session_state['scenario_weights']=weights
