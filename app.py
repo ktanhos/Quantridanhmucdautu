@@ -18,23 +18,146 @@ if "policy" not in st.session_state:
 
 st.markdown("""
 <style>
-.block-container{max-width:1480px;padding-top:2rem;padding-bottom:4rem}
-[data-testid="stHeader"]{background:transparent}
-h1{font-size:2.35rem!important;font-weight:750!important;letter-spacing:-.03em}
-h2{font-size:1.55rem!important;font-weight:720!important;margin-top:2.2rem!important;padding-left:.75rem;border-left:4px solid #4f8cff}
-h3{font-size:1.12rem!important;font-weight:680!important;margin-top:1.4rem!important}
-.hero{border:1px solid rgba(128,128,128,.24);border-radius:18px;padding:1.5rem 1.7rem;margin-bottom:1.2rem;background:linear-gradient(135deg,rgba(79,140,255,.10),rgba(128,128,128,.035))}
-.hero-title{font-size:1.9rem;font-weight:760;line-height:1.15;margin-bottom:.45rem}
-.hero-subtitle{color:#8f96a3;font-size:.94rem;line-height:1.55;max-width:900px}
-.hero-chip{display:inline-block;margin-top:.8rem;margin-right:.45rem;padding:.3rem .65rem;border-radius:999px;border:1px solid rgba(128,128,128,.25);font-size:.75rem;color:#aeb5c1;background:rgba(128,128,128,.06)}
-.section-note{color:#8f96a3;font-size:.88rem;line-height:1.55;margin-top:-.35rem;margin-bottom:1rem}
-[data-testid="stMetric"]{border:1px solid rgba(128,128,128,.20);border-radius:12px;padding:.8rem .9rem;background:rgba(128,128,128,.025);min-height:100px}
-[data-testid="stMetricLabel"]{font-size:.78rem}
-[data-testid="stMetricValue"]{font-size:1.55rem}
-[data-testid="stExpander"]{border:1px solid rgba(128,128,128,.20);border-radius:12px;overflow:hidden}
-[data-testid="stDataFrame"]{border:1px solid rgba(128,128,128,.16);border-radius:10px;overflow:hidden}
-div.stButton>button{border-radius:10px;font-weight:650;min-height:2.7rem}
-.small-note{color:#8f96a3;font-size:.76rem;line-height:1.5}
+:root{
+    --bg:#080b12;
+    --panel:#10151f;
+    --panel-2:#141b27;
+    --panel-3:#0d121b;
+    --border:rgba(148,163,184,.14);
+    --border-strong:rgba(148,163,184,.24);
+    --text:#f4f7fb;
+    --muted:#8993a4;
+    --muted-2:#657083;
+    --accent:#5b8cff;
+    --accent-2:#7c6cff;
+    --positive:#2fcf8f;
+    --negative:#ff647c;
+    --warning:#f3b94f;
+    --radius:16px;
+    --shadow:0 14px 40px rgba(0,0,0,.18);
+}
+
+.stApp{
+    background:
+        radial-gradient(circle at 82% 0%,rgba(91,140,255,.09),transparent 28%),
+        radial-gradient(circle at 12% 20%,rgba(124,108,255,.045),transparent 25%),
+        var(--bg);
+    color:var(--text);
+}
+
+.block-container{max-width:1500px;padding:2.2rem 3rem 5rem}
+[data-testid="stHeader"]{background:rgba(8,11,18,.72);backdrop-filter:blur(14px)}
+
+h1,h2,h3{color:var(--text)!important;letter-spacing:-.025em}
+h1{font-size:2.45rem!important;font-weight:760!important;line-height:1.1!important}
+h2{font-size:1.42rem!important;font-weight:720!important;margin-top:2.35rem!important;margin-bottom:1rem!important;padding:0 0 0 .85rem;border-left:3px solid var(--accent)}
+h3{font-size:1.08rem!important;font-weight:680!important;margin-top:1.5rem!important}
+
+.hero{
+    position:relative;overflow:hidden;
+    border:1px solid var(--border-strong);
+    border-radius:24px;
+    padding:2rem 2.1rem 1.65rem;
+    margin:0 0 1.5rem;
+    background:linear-gradient(135deg,rgba(18,25,38,.96),rgba(12,17,27,.92));
+    box-shadow:var(--shadow);
+}
+.hero:before{
+    content:"";position:absolute;width:360px;height:360px;right:-150px;top:-210px;border-radius:50%;
+    background:radial-gradient(circle,rgba(91,140,255,.22),transparent 68%);pointer-events:none;
+}
+.hero:after{
+    content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:linear-gradient(90deg,transparent,rgba(91,140,255,.45),transparent);
+}
+.hero-title{font-size:2rem;font-weight:780;line-height:1.12;margin-bottom:.55rem;position:relative;z-index:1}
+.hero-subtitle{color:#9ba6b7;font-size:.92rem;line-height:1.65;max-width:930px;position:relative;z-index:1}
+.hero-chip{display:inline-block;margin-top:1rem;margin-right:.42rem;padding:.36rem .72rem;border-radius:999px;border:1px solid var(--border-strong);font-size:.72rem;color:#b9c2d1;background:rgba(255,255,255,.035);position:relative;z-index:1}
+
+.section-note{color:var(--muted);font-size:.86rem;line-height:1.65;margin-top:-.3rem;margin-bottom:1.05rem}
+.small-note,.metric-note{color:var(--muted);font-size:.76rem;line-height:1.55}
+
+/* Thanh bên */
+section[data-testid="stSidebar"]{
+    background:linear-gradient(180deg,#0d121b 0%,#090d14 100%);
+    border-right:1px solid var(--border);
+}
+section[data-testid="stSidebar"] > div{padding-top:1.4rem}
+section[data-testid="stSidebar"] h3{font-size:.82rem!important;text-transform:uppercase;letter-spacing:.12em;color:#aeb8c8!important}
+section[data-testid="stSidebar"] [data-testid="stCaptionContainer"]{color:var(--muted-2)}
+
+/* Thẻ chỉ số */
+[data-testid="stMetric"]{
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:1rem 1.05rem;
+    background:linear-gradient(145deg,rgba(20,27,39,.88),rgba(13,18,27,.78));
+    min-height:108px;
+    box-shadow:0 7px 22px rgba(0,0,0,.12);
+    transition:transform .16s ease,border-color .16s ease,background .16s ease;
+}
+[data-testid="stMetric"]:hover{transform:translateY(-1px);border-color:rgba(91,140,255,.32);background:linear-gradient(145deg,rgba(23,31,45,.94),rgba(13,18,27,.84))}
+[data-testid="stMetricLabel"]{font-size:.72rem!important;color:var(--muted)!important;font-weight:560!important}
+[data-testid="stMetricValue"]{font-size:1.55rem!important;font-weight:730!important;letter-spacing:-.025em;color:#f7f9fc!important}
+[data-testid="stMetricDelta"]{font-size:.72rem!important}
+
+/* Ô nhập liệu */
+div[data-baseweb="input"],div[data-baseweb="select"],div[data-baseweb="textarea"]{
+    border-radius:11px;
+}
+div[data-baseweb="input"] > div,div[data-baseweb="select"] > div,div[data-baseweb="textarea"] > div{
+    background:#0d131d!important;border-color:var(--border-strong)!important;border-radius:11px!important;
+}
+input,textarea{color:var(--text)!important}
+label{color:#aeb7c6!important;font-size:.79rem!important;font-weight:560!important}
+
+/* Nút */
+div.stButton>button{
+    border-radius:11px!important;
+    min-height:2.75rem;
+    font-weight:680!important;
+    letter-spacing:.01em;
+    border:1px solid var(--border-strong)!important;
+    transition:all .16s ease!important;
+}
+div.stButton>button:hover{transform:translateY(-1px);border-color:rgba(91,140,255,.55)!important;box-shadow:0 8px 24px rgba(0,0,0,.2)!important}
+div.stButton>button[kind="primary"]{background:linear-gradient(135deg,#5b8cff,#7166ed)!important;border:0!important;box-shadow:0 8px 24px rgba(91,140,255,.16)!important}
+
+/* Thẻ mở rộng */
+[data-testid="stExpander"]{border:1px solid var(--border);border-radius:14px!important;overflow:hidden;background:rgba(14,20,29,.54)}
+[data-testid="stExpander"] summary{padding:.75rem .9rem!important}
+
+/* Bảng */
+[data-testid="stDataFrame"]{border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 8px 25px rgba(0,0,0,.10)}
+[data-testid="stDataFrame"] div[role="columnheader"]{font-size:.73rem!important;font-weight:650!important}
+
+/* Thông báo */
+div[data-testid="stAlert"]{border-radius:13px!important;border:1px solid var(--border)!important;background:rgba(16,22,32,.72)!important}
+
+/* Tab */
+button[data-baseweb="tab"]{font-size:.79rem!important;font-weight:650!important;color:var(--muted)!important;padding:0 1rem!important}
+button[data-baseweb="tab"][aria-selected="true"]{color:#f3f6fb!important}
+div[data-baseweb="tab-highlight"]{background:linear-gradient(90deg,var(--accent),var(--accent-2))!important;height:2px!important}
+
+/* Bộ chọn */
+div[role="radiogroup"] label,div[role="group"] label{border-radius:10px!important}
+
+/* Đường phân cách */
+hr{border-color:var(--border)!important;margin:1.5rem 0!important}
+
+/* Biểu đồ */
+[data-testid="stVegaLiteChart"]{border:1px solid var(--border);border-radius:14px;padding:.35rem;background:rgba(13,18,27,.55)}
+
+/* Chữ phụ */
+.stCaption{color:var(--muted)!important}
+
+/* Mobile */
+@media(max-width:900px){
+    .block-container{padding:1.25rem 1rem 3rem}
+    .hero{padding:1.35rem 1.2rem}
+    .hero-title{font-size:1.65rem}
+    h1{font-size:2rem!important}
+    h2{font-size:1.25rem!important}
+}
 </style>
 """, unsafe_allow_html=True)
 
