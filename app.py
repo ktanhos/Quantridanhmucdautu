@@ -4,6 +4,7 @@ import streamlit as st
 from config import APP_NAME, DEFAULT_BENCHMARK, DEFAULT_TICKERS
 from data_pipeline import load_market_dataset
 from data_provider import configure_vnstock
+from market_regime_ui import render_market_regime
 from policy import InvestmentPolicy, risk_label, validate_policy
 
 st.set_page_config(page_title=APP_NAME, page_icon="📊", layout="wide", initial_sidebar_state="expanded")
@@ -32,11 +33,7 @@ st.caption("Bạn không cần biết thuật ngữ tài chính. Hãy trả lờ
 
 with st.container(border=True):
     st.subheader("2.1. Bạn muốn khoản đầu tư này đạt điều gì?")
-    goal_options = {
-        "Bảo toàn vốn": "Ưu tiên hạn chế thua lỗ hơn là tìm kiếm lợi nhuận cao.",
-        "Tăng trưởng ổn định": "Chấp nhận biến động vừa phải để tìm kiếm tăng trưởng dài hạn.",
-        "Tăng trưởng cao": "Chấp nhận biến động lớn hơn để tìm kiếm lợi nhuận cao hơn.",
-    }
+    goal_options = {"Bảo toàn vốn": "Ưu tiên hạn chế thua lỗ hơn là tìm kiếm lợi nhuận cao.", "Tăng trưởng ổn định": "Chấp nhận biến động vừa phải để tìm kiếm tăng trưởng dài hạn.", "Tăng trưởng cao": "Chấp nhận biến động lớn hơn để tìm kiếm lợi nhuận cao hơn."}
     investor_goal = st.radio("Mục tiêu chính", list(goal_options), horizontal=True, help="Chọn mục tiêu gần nhất với mong muốn thực tế của bạn.")
     st.caption(goal_options[investor_goal])
     target_return = st.number_input("Lợi nhuận mục tiêu mỗi năm (%)", min_value=0.0, max_value=100.0, value=12.0, step=0.5, format="%.1f", help="Mức lợi nhuận bạn mong muốn đạt được bình quân mỗi năm. Đây là mục tiêu, không phải cam kết lợi nhuận.")
@@ -52,11 +49,7 @@ with st.container(border=True):
     st.subheader("2.3. Khi nào bạn cần sử dụng số tiền này?")
     horizon_labels = {1: "Dưới 2 năm", 3: "2 đến 5 năm", 7: "5 đến 10 năm", 15: "Trên 10 năm"}
     investment_horizon_years = st.select_slider("Thời hạn đầu tư", options=list(horizon_labels), value=7, format_func=lambda x: horizon_labels[x], help="Khoảng thời gian bạn dự kiến duy trì khoản đầu tư trước khi cần sử dụng phần lớn số tiền.")
-    liquidity_options = {
-        "Cao": "Có thể cần tiền trong ngắn hạn. Nên ưu tiên tài sản có tính thanh khoản cao.",
-        "Trung bình": "Có thể chấp nhận một phần vốn biến động trong thời gian dài hơn.",
-        "Thấp": "Ít nhu cầu sử dụng vốn trong ngắn hạn.",
-    }
+    liquidity_options = {"Cao": "Có thể cần tiền trong ngắn hạn. Nên ưu tiên tài sản có tính thanh khoản cao.", "Trung bình": "Có thể chấp nhận một phần vốn biến động trong thời gian dài hơn.", "Thấp": "Ít nhu cầu sử dụng vốn trong ngắn hạn."}
     liquidity_need = st.selectbox("Nhu cầu sử dụng tiền", list(liquidity_options), index=1, help="Khả năng bạn cần rút tiền trong thời gian ngắn.")
     st.caption(liquidity_options[liquidity_need])
 
@@ -83,21 +76,7 @@ with st.container(border=True):
     st.subheader("2.6. Thị trường dùng để so sánh")
     benchmark = st.text_input("Chỉ số tham chiếu", value=DEFAULT_BENCHMARK, help="Ví dụ VNINDEX. Hệ thống dùng chỉ số này để đánh giá danh mục có tốt hơn thị trường hay không.").strip().upper()
 
-policy = InvestmentPolicy(
-    investor_goal=investor_goal,
-    target_return=target_return / 100,
-    risk_tolerance=risk_tolerance,
-    risk_capacity=risk_capacity,
-    investment_horizon_years=investment_horizon_years,
-    liquidity_need=liquidity_need,
-    benchmark=benchmark or DEFAULT_BENCHMARK,
-    max_single_stock_weight=max_single_stock_weight / 100,
-    max_sector_weight=max_sector_weight / 100,
-    allow_short=allow_short,
-    allow_leverage=allow_leverage,
-    defensive_asset=defensive_asset,
-    emergency_cash_percent=emergency_cash_percent / 100,
-)
+policy = InvestmentPolicy(investor_goal=investor_goal, target_return=target_return / 100, risk_tolerance=risk_tolerance, risk_capacity=risk_capacity, investment_horizon_years=investment_horizon_years, liquidity_need=liquidity_need, benchmark=benchmark or DEFAULT_BENCHMARK, max_single_stock_weight=max_single_stock_weight / 100, max_sector_weight=max_sector_weight / 100, allow_short=allow_short, allow_leverage=allow_leverage, defensive_asset=defensive_asset, emergency_cash_percent=emergency_cash_percent / 100)
 
 policy_errors = validate_policy(policy)
 if policy_errors:
@@ -162,4 +141,7 @@ if "market_data" in st.session_state:
         st.dataframe(benchmark_table.tail(20), use_container_width=True, hide_index=True)
     with st.expander("Xem thông tin doanh nghiệp", expanded=False):
         st.dataframe(data["company_table"], use_container_width=True, hide_index=True)
-    st.success("Dữ liệu nền đã sẵn sàng. Bước tiếp theo sẽ dùng Hồ sơ đầu tư để xây dựng trạng thái thị trường và phân bổ cổ phiếu.")
+
+    st.divider()
+    render_market_regime(data["benchmark_prices"], data["prices"])
+    st.caption("Market Regime mới chỉ xác định trạng thái thị trường và mức độ tiếp xúc cổ phiếu tham chiếu. Chưa tự động chọn mã hoặc đặt lệnh.")
