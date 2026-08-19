@@ -25,15 +25,15 @@ def risk_aversion_from_profile(risk_tolerance):
 
 def build_complete_portfolio(orp_weights,expected_returns,covariance,risk_free_rate,risk_tolerance,allow_leverage=None,margin_rate=None,max_leverage=1.50,current_weights=None,**kwargs):
     """Chuyển Optimal Risky Portfolio thành Complete Portfolio, có xét vay Margin khi người dùng bật."""
-    if allow_leverage is None or margin_rate is None:
-        try:
-            import streamlit as st
-            policy=st.session_state.get('policy') or {}
-            if allow_leverage is None:allow_leverage=bool(policy.get('allow_leverage',False))
-            if margin_rate is None:margin_rate=float(policy.get('margin_rate',st.session_state.get('saved_margin_rate',0.12)))
-        except Exception:
-            if allow_leverage is None:allow_leverage=False
-            if margin_rate is None:margin_rate=0.12
+    try:
+        import streamlit as st
+        session_policy=st.session_state.get('policy') or {}
+        widget_leverage=st.session_state.get('allow_leverage',None)
+        widget_margin=st.session_state.get('margin_rate',None)
+    except Exception:
+        session_policy={};widget_leverage=None;widget_margin=None
+    if allow_leverage is None:allow_leverage=bool(widget_leverage if widget_leverage is not None else session_policy.get('allow_leverage',False))
+    if margin_rate is None:margin_rate=float(widget_margin/100 if widget_margin is not None else st.session_state.get('saved_margin_rate',session_policy.get('margin_rate',0.12)) if 'st' in locals() else session_policy.get('margin_rate',0.12))
     w_orp=pd.Series(orp_weights,dtype=float).clip(lower=0)
     if w_orp.sum()<=0:raise ValueError('Optimal Risky Portfolio không có tỷ trọng hợp lệ.')
     w_orp=w_orp/w_orp.sum();mu=pd.Series(expected_returns,dtype=float).reindex(w_orp.index).fillna(0)
@@ -48,7 +48,6 @@ def build_complete_portfolio(orp_weights,expected_returns,covariance,risk_free_r
     comparison=compare_current_to_target(current_weights if current_weights is not None else pd.Series(dtype=float),complete_equity)
     result={'orp_weights':w_orp,'complete_equity_weights':complete_equity,'defensive_weight':defensive,'borrowed_weight':borrowed,'expected_return_orp':er_orp,'volatility_orp':sigma_orp,'variance_orp':variance_orp,'risk_free_rate':rf,'margin_rate':margin,'risk_aversion':A,'excess_return':excess,'y_raw_no_borrow':y_unlevered_raw,'y_raw_with_margin':y_levered_raw,'y':y,'complete_expected_return':complete_return,'complete_volatility':complete_vol,'complete_sharpe':complete_sharpe,'borrowing_cost':borrowing_cost,'allow_leverage':bool(allow_leverage),'max_leverage':float(max_leverage),'comparison':comparison}
     try:
-        import streamlit as st
         if bool(allow_leverage) and borrowed>1e-8:
             st.warning(f'Đã kích hoạt vay Margin: mức phơi nhiễm cổ phiếu {y:.1%}, trong đó vốn vay tương đương {borrowed:.1%} vốn tự có. Chi phí vay giả định {margin:.2%}/năm, tương đương {borrowing_cost:.2%} giá trị danh mục mỗi năm.')
         if np.isfinite(complete_sharpe) and complete_sharpe<0.5:
