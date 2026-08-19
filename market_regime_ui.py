@@ -5,7 +5,7 @@ from market_regime import calculate_market_regime
 
 
 def render_market_regime(index_prices: pd.Series, stock_prices: pd.DataFrame | None = None) -> None:
-    st.subheader("3. MARKET REGIME")
+    st.header("Bước 5. Đánh giá Market Regime")
     st.caption("Hệ thống đánh giá trạng thái thị trường từ xu hướng, độ rộng, động lượng, biến động và thanh khoản. Mọi kết luận đều có thể truy ngược về số liệu bên dưới.")
     try:
         result = calculate_market_regime(index_prices, stock_prices)
@@ -19,14 +19,14 @@ def render_market_regime(index_prices: pd.Series, stock_prices: pd.DataFrame | N
     c3.metric("Độ tin cậy", result.confidence)
     c4.metric("Tỷ trọng cổ phiếu tham chiếu", f"{result.equity_min:.0%} đến {result.equity_max:.0%}")
 
-    st.markdown("**Bảng 3.1. Điểm Market Regime và mức đóng góp**")
+    st.markdown("**Bảng 5.1. Điểm Market Regime và mức đóng góp**")
     display = result.components.copy()
     display["Điểm"] = display["Điểm"].round(1)
     display["Trọng số"] = display["Trọng số"].map(lambda x: f"{x:.0%}")
     display["Đóng góp"] = display["Đóng góp"].round(1)
     st.dataframe(display, use_container_width=True, hide_index=True)
 
-    st.markdown("**Bảng 3.2. Các chỉ báo xác định trạng thái thị trường**")
+    st.markdown("**Bảng 5.2. Các chỉ báo xác định trạng thái thị trường**")
     rows = []
     for name, value in result.indicators.items():
         if name.startswith("%"):
@@ -44,7 +44,7 @@ def render_market_regime(index_prices: pd.Series, stock_prices: pd.DataFrame | N
         rows.append({"Chỉ báo": name, "Giá trị": text})
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
-    st.markdown("**Bảng 3.3. Ngưỡng phân loại Market Regime**")
+    st.markdown("**Bảng 5.3. Ngưỡng phân loại Market Regime**")
     st.dataframe(pd.DataFrame([
         ["80 đến 100", "Tích cực mạnh", "90% đến 100%"],
         ["65 đến dưới 80", "Tích cực", "70% đến 90%"],
