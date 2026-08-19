@@ -29,7 +29,8 @@ policy=InvestmentPolicy(investor_goal=investor_goal,target_return=target_return/
 if errors:
     for e in errors:st.warning(e)
 else:st.success(f'Hồ sơ hợp lệ. Mục tiêu {target_return:.1f}% mỗi năm. Khẩu vị rủi ro {risk_label(risk_tolerance)}.')
-if st.button('LƯU HỒ SƠ ĐẦU TƯ',type='primary',use_container_width=True,disabled=bool(errors),key='save_policy'):st.session_state['policy']=policy.to_dict();st.session_state['margin_rate']=margin_rate/100;st.success('Đã lưu hồ sơ.')
+if st.button('LƯU HỒ SƠ ĐẦU TƯ',type='primary',use_container_width=True,disabled=bool(errors),key='save_policy'):
+    st.session_state['policy']=policy.to_dict();st.session_state['saved_margin_rate']=margin_rate/100;st.success('Đã lưu hồ sơ.')
 st.divider();st.header('Bước 3. Lấy dữ liệu');st.caption('Danh mục lấy giá và khối lượng riêng. Market Regime dùng VNINDEX OHLCV theo ngày, trong đó có khối lượng VNINDEX.')
 col1,col2=st.columns(2)
 with col1:tickers_text=st.text_input('Các mã cổ phiếu muốn theo dõi',value=', '.join(DEFAULT_TICKERS),key='tickers_input');start_date=st.date_input('Ngày bắt đầu',value=pd.Timestamp('2022-01-01').date(),key='start_date')
