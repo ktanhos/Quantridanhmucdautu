@@ -10,14 +10,14 @@ def _choose_best(summary, policy):
     target=float(policy.get('target_return',0))
     capacity=float(policy.get('risk_capacity',50))
     risk_limit=0.15+0.25*capacity/100
-    candidates=s.copy()
-    feasible=candidates[(candidates['Lợi suất kỳ vọng']>=target)&(candidates['Độ biến động']<=risk_limit)]
+    feasible=s[(s['Lợi suất kỳ vọng']>=target)&(s['Độ biến động']<=risk_limit)]
     if not feasible.empty:
-        return feasible['Sharpe Ratio'].idxmax(),'Đạt cả mục tiêu lợi nhuận và giới hạn rủi ro.'
-    target_ok=candidates[candidates['Lợi suất kỳ vọng']>=target]
+        return feasible['Sharpe Ratio'].idxmax(),'Đạt cả mục tiêu lợi nhuận và giới hạn rủi ro.','Đề xuất'
+    target_ok=s[s['Lợi suất kỳ vọng']>=target]
     if not target_ok.empty:
-        return target_ok['Sharpe Ratio'].idxmax(),'Không có phương án nào đồng thời đạt giới hạn rủi ro; chọn phương án đạt mục tiêu với Sharpe cao nhất.'
-    return candidates['Sharpe Ratio'].idxmax(),'Không phương án nào đạt mục tiêu lợi nhuận; cần xem xét lại mục tiêu hoặc tập cổ phiếu trước khi coi một phương án là phù hợp.'
+        best=target_ok['Sharpe Ratio'].idxmax()
+        return best,'Có thể đạt mục tiêu lợi nhuận nhưng phải chấp nhận mức rủi ro cao hơn giới hạn hồ sơ. Đây là phương án đánh đổi, không phải phương án hoàn toàn phù hợp.','Đánh đổi'
+    return None,'Không phương án nào đạt mục tiêu lợi nhuận với tập cổ phiếu hiện tại.','Không có phương án phù hợp'
 
 
 def _diagnose_target_gap(optimization_result,best,policy):
@@ -42,7 +42,7 @@ def _render_invalid_constraints(optimization_result,policy):
     st.warning(f'Với {n} mã và giới hạn {requested:.0%} cho mỗi mã, tổng tỷ trọng tối đa chỉ là {n*requested:.0%}. Vì vậy chưa thể tạo danh mục 100% cổ phiếu mà vẫn tuân thủ đúng hồ sơ.')
     st.markdown('**Có ba hướng xử lý:**')
     st.write(f'1. Bổ sung ít nhất {max(0,required-n)} mã để có đủ không gian phân bổ.')
-    st.write(f'2. Nếu Cậu chủ Tân chủ động chỉ muốn giữ {n} mã, có thể tăng giới hạn tối đa lên ít nhất {1/n:.0%} mỗi mã.')
+    st.write(f'2. Nếu chỉ muốn giữ {n} mã, có thể tăng giới hạn tối đa lên ít nhất {1/n:.0%} mỗi mã.')
     st.write('3. Nếu mục tiêu lợi nhuận hiện tại quá cao so với tập cổ phiếu, có thể giảm mục tiêu hoặc mở rộng tập cổ phiếu để hệ thống có thêm lựa chọn.')
     st.caption('Việc có 4 hoặc 5 mã không tự động có nghĩa là danh mục xấu. Vấn đề ở đây chỉ là giới hạn tỷ trọng hiện tại có đủ không gian để phân bổ 100% hay không.')
 
@@ -55,15 +55,40 @@ def render_recommendation(returns,optimization_result,regime_result,policy):
     if not optimization_result.get('constraint_feasible',True):
         _render_invalid_constraints(optimization_result,policy)
         st.subheader('8.2. Tại sao chưa thể kết luận phương án tốt nhất?')
-        st.info('Các phương án ở Bước 7 chỉ là nghiệm tham khảo vì chưa thỏa giới hạn tỷ trọng trong hồ sơ. Hệ thống không chuyển chúng thành danh mục mục tiêu để tránh trường hợp một cổ phiếu vượt quá giới hạn mà vẫn bị gắn nhãn tối ưu.')
+        st.info('Các phương án ở Bước 7 chỉ là nghiệm mô hình tham khảo vì chưa thỏa giới hạn tỷ trọng trong hồ sơ. Hệ thống không chuyển chúng thành danh mục mục tiêu để tránh trường hợp một cổ phiếu vượt quá giới hạn mà vẫn bị gắn nhãn tối ưu.')
         st.subheader('8.3. Nên làm gì tiếp theo?')
         st.write('Bổ sung thêm các cổ phiếu có đặc điểm lợi suất, biến động và tương quan khác nhau. Sau đó hệ thống sẽ tính lại các phương án và kiểm tra xem mục tiêu lợi nhuận có đạt được với giới hạn rủi ro hay không.')
         st.caption('Nếu sau khi mở rộng tập cổ phiếu mà lợi suất kỳ vọng tối đa vẫn thấp hơn mục tiêu, hệ thống sẽ chỉ ra rằng mục tiêu đang cao hơn khả năng của tập dữ liệu thay vì ép một mã lên tỷ trọng quá cao.')
         return
 
     summary=optimization_result['summary']
-    best,reason=_choose_best(summary,policy)
-    if best not in SCENARIOS:best='Optimal Risky'
+    best,reason,status=_choose_best(summary,policy)
+    if best is None:
+        target=float(policy.get('target_return',0))
+        max_expected=float(summary['Lợi suất kỳ vọng'].max())
+        st.subheader('8.1. Chưa có phương án đạt mục tiêu')
+        c1,c2=st.columns(2)
+        c1.metric('Mục tiêu lợi nhuận',f'{target:.2%}')
+        c2.metric('Lợi suất kỳ vọng cao nhất',f'{max_expected:.2%}')
+        st.error(f'Tập cổ phiếu hiện tại chưa tạo được phương án có lợi suất kỳ vọng đạt {target:.2%}. Không nên gắn nhãn một phương án là tối ưu chỉ để có kết luận.')
+        st.subheader('8.2. Các hướng xử lý')
+        st.write('1. Mở rộng tập cổ phiếu để tìm thêm cơ hội có lợi suất kỳ vọng và tương quan khác.')
+        st.write('2. Giảm mục tiêu lợi nhuận nếu mục tiêu hiện tại cao hơn khả năng của tập dữ liệu.')
+        st.write('3. Nếu vẫn muốn giữ mục tiêu, có thể chấp nhận mức rủi ro cao hơn, nhưng hệ thống phải thể hiện rõ đây là đánh đổi chứ không phải phương án phù hợp hoàn toàn.')
+        st.subheader('8.3. Chẩn đoán nguyên nhân')
+        best_gap=summary['Lợi suất kỳ vọng'].idxmax()
+        expected,target,stock=_diagnose_target_gap(optimization_result,best_gap,policy)
+        negative=stock[stock['Ảnh hưởng so với mục tiêu']<0].copy()
+        if not negative.empty:
+            view=negative.copy()
+            view['Tỷ trọng']=view['Tỷ trọng'].map(lambda x:f'{x:.2%}')
+            view['Lợi suất kỳ vọng']=view['Lợi suất kỳ vọng'].map(lambda x:f'{x:.2%}')
+            view['Đóng góp vào lợi suất']=view['Đóng góp vào lợi suất'].map(lambda x:f'{x:.2%}')
+            view['Ảnh hưởng so với mục tiêu']=view['Ảnh hưởng so với mục tiêu'].map(lambda x:f'{x:.2%}')
+            st.dataframe(view,use_container_width=True)
+        st.caption('Hệ thống đang chỉ ra các mã làm lợi suất kỳ vọng thấp hơn mức mục tiêu. Đây là chẩn đoán để người dùng xem xét tập cổ phiếu, không phải tín hiệu mua bán.')
+        return
+
     equity_min=float(getattr(regime_result,'equity_min',.5))
     equity_max=float(getattr(regime_result,'equity_max',.7))
     regime=str(getattr(regime_result,'regime','Trung tính'))
@@ -71,10 +96,13 @@ def render_recommendation(returns,optimization_result,regime_result,policy):
 
     st.subheader('8.1. Phương án phù hợp nhất với hồ sơ')
     c1,c2,c3=st.columns(3)
-    c1.metric('Phương án đề xuất',best)
+    c1.metric('Phương án',best)
     c2.metric('Market Regime',regime)
     c3.metric('Tỷ trọng cổ phiếu đề xuất',f'{rec_best["target_equity_weights"].sum():.1%}')
-    st.info(reason)
+    if status=='Đề xuất':
+        st.success(reason)
+    else:
+        st.warning(reason)
     st.caption('Phương án được chọn theo mục tiêu lợi nhuận, giới hạn rủi ro suy ra từ mức chấp nhận biến động và Sharpe Ratio. Đây là tiêu chí định hướng, không phải bảo đảm lợi nhuận.')
 
     st.subheader('8.2. Các phương án để nhà đầu tư so sánh')
