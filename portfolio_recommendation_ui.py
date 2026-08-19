@@ -1,3 +1,4 @@
+import math
 import pandas as pd
 import streamlit as st
 from portfolio_recommendation import build_recommendation
@@ -34,9 +35,18 @@ def render_recommendation(returns,optimization_result,regime_result,policy):
     if selected!=best:st.caption(f'Đang xem chi tiết {selected}. Tỷ trọng đề xuất chính thức vẫn dựa trên {best}.')
     defensive_value=rec_best['defensive_weight']*float(st.session_state.get('investment_capital',0));st.caption(f'Tài sản phòng thủ dự kiến: {defensive_value:,.0f} VNĐ. Tỷ trọng phòng thủ phụ thuộc Market Regime và được dùng để giảm mức phơi nhiễm cổ phiếu khi thị trường không thuận lợi.')
     st.subheader('8.4. Có nên chọn cổ phiếu khác không?')
-    active=table.index.tolist();max_w=float(rec_best['target_equity_weights'].max());n=len(active)
-    if n<5:st.warning(f'Mô hình hiện chỉ phân bổ vào {n} mã. Nếu mục tiêu là đa dạng hóa tốt hơn, nên mở rộng tập cổ phiếu đầu vào thay vì tự ý thêm mã chỉ vì một mã có lợi suất cao.')
-    elif max_w>float(policy.get('max_single_stock_weight',.10))+.001:st.warning('Một số tỷ trọng đang cao hơn giới hạn hồ sơ. Cần kiểm tra lại giới hạn tỷ trọng hoặc mở rộng tập cổ phiếu để có thêm lựa chọn.')
-    else:st.success('Tập cổ phiếu hiện tại đủ lựa chọn theo giới hạn tỷ trọng đang đặt ra. Chưa có cơ sở chỉ vì một mã có lợi suất cao mà thay thế bằng mã khác.')
+    requested_max=float(optimization_result.get('requested_max_weight',policy.get('max_single_stock_weight',.10)))
+    universe_size=int(optimization_result.get('universe_size',len(returns.columns)))
+    required=math.ceil(1/requested_max) if requested_max>0 else universe_size
+    effective_max=float(optimization_result.get('effective_max_weight',1/universe_size if universe_size else 1))
+    if universe_size<required:
+        st.warning(f'Tập cổ phiếu hiện tại có {universe_size} mã nhưng hồ sơ giới hạn tối đa {requested_max:.0%} mỗi mã. Để hệ thống có thể tạo một danh mục cổ phiếu đủ 100% mà vẫn giữ giới hạn này, nên mở rộng tập lên ít nhất {required} mã. Với tập hiện tại, mô hình phải nới giới hạn lên khoảng {effective_max:.2%}/mã nên các phương án có thể giống nhau.')
+        st.info('Gợi ý: hãy bổ sung thêm các cổ phiếu khác vào tập xem xét. Hệ thống sẽ tự đánh giá lại lợi suất, biến động và tương quan rồi xác định mã nào phù hợp với từng phương án. Không nên tự chọn thêm mã chỉ vì một mã có lợi suất quá cao.')
+    else:
+        max_w=float(rec_best['target_equity_weights'].max());
+        if max_w>requested_max+.001:
+            st.warning('Một số tỷ trọng đang cao hơn giới hạn hồ sơ do điều chỉnh theo Market Regime. Cần kiểm tra lại giới hạn tỷ trọng trước khi sử dụng kết quả.')
+        else:
+            st.success('Tập cổ phiếu hiện tại đủ rộng để mô hình áp dụng giới hạn tỷ trọng theo hồ sơ. Chưa có cơ sở chỉ vì một mã có lợi suất cao mà thay thế bằng mã khác.')
     st.caption('Khuyến nghị chọn cổ phiếu được hiểu là lựa chọn trong tập dữ liệu đầu vào dựa trên đặc điểm lợi suất, biến động và tương quan. Ứng dụng không kết luận một mã chắc chắn sẽ tăng giá.')
     st.session_state['target_equity']=rec_best['target_equity_weights'];st.session_state['recommended_portfolio']=best;st.session_state['recommendation_result']=rec_best;st.session_state['selected_recommendation_portfolio']=selected
