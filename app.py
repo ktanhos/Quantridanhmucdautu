@@ -9,6 +9,7 @@ from portfolio_optimization_ui import render_portfolio_optimization
 from portfolio_recommendation_ui import render_recommendation
 from portfolio_holdings_ui import render_holdings
 from portfolio_rebalancing_ui import render_rebalancing
+from portfolio_after_costs_ui import render_after_costs
 from portfolio_costs import TradingCosts
 from policy import InvestmentPolicy, risk_label, validate_policy
 st.set_page_config(page_title=APP_NAME,page_icon='📊',layout='wide',initial_sidebar_state='expanded')
@@ -58,3 +59,4 @@ if 'market_data' in st.session_state:
     st.divider();render_portfolio_optimization(data['returns'],st.session_state.get('policy') or {})
     if 'optimization_result' in st.session_state:render_recommendation(data['returns'],st.session_state['optimization_result'],st.session_state.get('regime_result'),st.session_state.get('policy') or {})
     if 'optimization_result' in st.session_state:render_rebalancing(st.session_state.get('current_weights'),st.session_state['optimization_result'])
+    st.divider();render_after_costs(data['returns'],data['benchmark_returns'])
