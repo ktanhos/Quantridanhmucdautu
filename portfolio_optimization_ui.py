@@ -33,21 +33,36 @@ def _allocation_chart(weights):
     chart_data = chart_data.melt(
         id_vars="Mã", var_name="Phương án", value_name="Tỷ trọng"
     )
-    return alt.Chart(chart_data).mark_bar().encode(
-        x=alt.X("Phương án:N", title="Phương án", axis=alt.Axis(labelAngle=0)),
+
+    max_value = float(chart_data["Tỷ trọng"].max()) if not chart_data.empty else 0.0
+    # Chỉ thay đổi cách hiển thị: không ép trục lên 100% khi các tỷ trọng thực tế
+    # chỉ nằm quanh 10 đến 20%. Luôn chừa một khoảng đệm phía trên cột cao nhất.
+    if max_value <= 0:
+        chart_max = 10
+    else:
+        chart_max = max(10, math.ceil((max_value * 1.15) / 5) * 5)
+        chart_max = min(chart_max, 100)
+
+    return alt.Chart(chart_data).mark_bar(size=18).encode(
+        x=alt.X(
+            "Phương án:N",
+            title="Phương án",
+            axis=alt.Axis(labelAngle=0, labelLimit=140),
+        ),
         xOffset=alt.XOffset("Mã:N", title="Mã cổ phiếu"),
         y=alt.Y(
             "Tỷ trọng:Q",
             title="Tỷ trọng (%)",
-            scale=alt.Scale(domain=[0, 100]),
+            scale=alt.Scale(domain=[0, chart_max], nice=False),
+            axis=alt.Axis(format=".0f", tickCount=min(6, max(3, int(chart_max / 5) + 1))),
         ),
         color=alt.Color("Mã:N", title="Mã cổ phiếu"),
         tooltip=[
-            alt.Tooltip("Phương án:N"),
-            alt.Tooltip("Mã:N"),
-            alt.Tooltip("Tỷ trọng:Q", format=".2f"),
+            alt.Tooltip("Phương án:N", title="Phương án"),
+            alt.Tooltip("Mã:N", title="Mã cổ phiếu"),
+            alt.Tooltip("Tỷ trọng:Q", title="Tỷ trọng", format=".2f"),
         ],
-    ).properties(height=420)
+    ).properties(height=380)
 
 
 def _scenario_metrics_table(result, weights, benchmark_returns):
