@@ -44,30 +44,68 @@ def _historical_comparison(returns, benchmark_returns, weights):
 
 
 def _allocation_chart(weights):
+    """Biểu đồ dùng trực tiếp cùng dữ liệu tỷ trọng với bảng."""
     chart_data=weights.copy().astype(float)
     chart_data.index=chart_data.index.astype(str)
     chart_data.columns=chart_data.columns.astype(str)
-    ticker_order=list(chart_data.index); scenario_order=list(chart_data.columns)
-    chart_data=chart_data.mul(100.0).rename_axis("Mã").reset_index().melt(id_vars="Mã",var_name="Phương án",value_name="Tỷ trọng")
+    ticker_order=list(chart_data.index)
+    scenario_order=list(chart_data.columns)
+
+    chart_data=(
+        chart_data.mul(100.0)
+        .rename_axis("Mã")
+        .reset_index()
+        .melt(id_vars="Mã",var_name="Phương án",value_name="Tỷ trọng")
+    )
     chart_data["Tỷ trọng"]=pd.to_numeric(chart_data["Tỷ trọng"],errors="coerce")
     chart_data=chart_data.dropna(subset=["Tỷ trọng"])
+
     sums=chart_data.groupby("Phương án",sort=False)["Tỷ trọng"].sum()
     invalid=sums[~np.isclose(sums.values,100.0,atol=1e-6)]
     if not invalid.empty:
         st.warning("Dữ liệu tỷ trọng của một hoặc nhiều phương án không bằng 100%. Biểu đồ đang hiển thị đúng dữ liệu đầu vào và không tự điều chỉnh tỷ trọng.")
+
     max_value=float(chart_data["Tỷ trọng"].max()) if not chart_data.empty else 0.0
     chart_max=10 if max_value<=0 else max(10,math.ceil((max_value*1.15)/5)*5)
     chart_max=min(chart_max,100)
+
     base=alt.Chart(chart_data)
-    bars=base.mark_bar(size=24,cornerRadiusTopLeft=3,cornerRadiusTopRight=3).encode(
-        x=alt.X("Phương án:N",title="Phương án",sort=scenario_order,axis=alt.Axis(labelAngle=0,labelLimit=160,titlePadding=14)),
-        xOffset=alt.XOffset("Mã:N",sort=ticker_order),
-        y=alt.Y("Tỷ trọng:Q",title="Tỷ trọng (%)",aggregate=None,scale=alt.Scale(domain=[0,chart_max],nice=False),axis=alt.Axis(format=".0f",tickCount=max(3,int(chart_max/5)+1),titlePadding=10)),
-        color=alt.Color("Mã:N",title="Mã cổ phiếu",sort=ticker_order,legend=alt.Legend(orient="right",symbolType="square")),
-        tooltip=[alt.Tooltip("Phương án:N",title="Phương án"),alt.Tooltip("Mã:N",title="Mã cổ phiếu"),alt.Tooltip("Tỷ trọng:Q",title="Tỷ trọng",format=".2f")])
+
+    # Dùng cú pháp tối giản tương thích Altair 6. Không truyền sort vào xOffset
+    # vì một số phiên bản Altair 6 không chấp nhận tham số sort ở kênh này.
+    bars=base.mark_bar(size=24).encode(
+        x=alt.X(
+            "Phương án:N",
+            title="Phương án",
+            sort=scenario_order,
+            axis=alt.Axis(labelAngle=0,labelLimit=160,titlePadding=14),
+        ),
+        xOffset=alt.XOffset("Mã:N"),
+        y=alt.Y(
+            "Tỷ trọng:Q",
+            title="Tỷ trọng (%)",
+            scale=alt.Scale(domain=[0,chart_max],nice=False),
+            axis=alt.Axis(format=".0f",tickCount=max(3,int(chart_max/5)+1),titlePadding=10),
+        ),
+        color=alt.Color(
+            "Mã:N",
+            title="Mã cổ phiếu",
+            legend=alt.Legend(orient="right",symbolType="square"),
+        ),
+        tooltip=[
+            alt.Tooltip("Phương án:N",title="Phương án"),
+            alt.Tooltip("Mã:N",title="Mã cổ phiếu"),
+            alt.Tooltip("Tỷ trọng:Q",title="Tỷ trọng",format=".2f"),
+        ],
+    )
+
     labels=base.mark_text(dy=-8,fontSize=10).encode(
-        x=alt.X("Phương án:N",sort=scenario_order),xOffset=alt.XOffset("Mã:N",sort=ticker_order),
-        y=alt.Y("Tỷ trọng:Q",aggregate=None,scale=alt.Scale(domain=[0,chart_max],nice=False)),text=alt.Text("Tỷ trọng:Q",format=".1f"))
+        x=alt.X("Phương án:N",sort=scenario_order),
+        xOffset=alt.XOffset("Mã:N"),
+        y=alt.Y("Tỷ trọng:Q",scale=alt.Scale(domain=[0,chart_max],nice=False)),
+        text=alt.Text("Tỷ trọng:Q",format=".1f"),
+    )
+
     return (bars+labels).properties(height=390)
 
 
