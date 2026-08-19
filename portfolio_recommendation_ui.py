@@ -5,8 +5,26 @@ from portfolio_recommendation import build_recommendation
 SCENARIOS=['Phân bổ tham chiếu','Minimum Variance','Optimal Risky','Maximum Return']
 
 
-def _choose_best(summary, policy):
+def _normalized_summary(summary):
+    """Chuẩn hóa tên cột giữa các phiên bản của bộ tối ưu hóa."""
     s=summary.copy()
+    aliases={
+        'Lợi suất ước tính':'Lợi suất kỳ vọng',
+        'Độ biến động ước tính':'Độ biến động',
+        'Sharpe Ratio ước tính':'Sharpe Ratio',
+    }
+    rename={old:new for old,new in aliases.items() if old in s.columns and new not in s.columns}
+    if rename:
+        s=s.rename(columns=rename)
+    required=['Lợi suất kỳ vọng','Độ biến động','Sharpe Ratio']
+    missing=[c for c in required if c not in s.columns]
+    if missing:
+        raise ValueError('Kết quả tối ưu hóa thiếu chỉ tiêu: '+', '.join(missing))
+    return s
+
+
+def _choose_best(summary, policy):
+    s=_normalized_summary(summary)
     target=float(policy.get('target_return',0))
     capacity=float(policy.get('risk_capacity',50))
     risk_limit=0.15+0.25*capacity/100
@@ -22,7 +40,7 @@ def _choose_best(summary, policy):
 
 def _diagnose_target_gap(optimization_result,best,policy):
     target=float(policy.get('target_return',0))
-    summary=optimization_result['summary']
+    summary=_normalized_summary(optimization_result['summary'])
     expected=float(summary.loc[best,'Lợi suất kỳ vọng'])
     mu=pd.Series(optimization_result.get('expected_returns',pd.Series(dtype=float)),dtype=float)
     weights=pd.Series(optimization_result['weights'][best],dtype=float).reindex(mu.index).fillna(0)
@@ -61,7 +79,7 @@ def render_recommendation(returns,optimization_result,regime_result,policy):
         st.caption('Nếu sau khi mở rộng tập cổ phiếu mà lợi suất kỳ vọng tối đa vẫn thấp hơn mục tiêu, hệ thống sẽ chỉ ra rằng mục tiêu đang cao hơn khả năng của tập dữ liệu thay vì ép một mã lên tỷ trọng quá cao.')
         return
 
-    summary=optimization_result['summary']
+    summary=_normalized_summary(optimization_result['summary'])
     best,reason,status=_choose_best(summary,policy)
     if best is None:
         target=float(policy.get('target_return',0))
