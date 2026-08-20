@@ -3,11 +3,10 @@ import pandas as pd
 
 def explain_sharpe(x):
     if pd.isna(x): return 'Chưa đủ dữ liệu để đánh giá.'
-    if x < 0: return 'Hiệu quả điều chỉnh theo rủi ro đang kém.'
-    if x < 0.5: return 'Hiệu quả điều chỉnh theo rủi ro còn thấp.'
-    if x < 1: return 'Hiệu quả điều chỉnh theo rủi ro ở mức khá.'
-    if x < 2: return 'Hiệu quả điều chỉnh theo rủi ro ở mức tốt.'
-    return 'Hiệu quả điều chỉnh theo rủi ro ở mức rất tốt.'
+    if x < 0: return 'Trong giai đoạn đánh giá, danh mục chưa tạo được lợi suất đủ để bù lãi suất phi rủi ro trên mức biến động đã chịu.'
+    if x < 0.5: return 'Danh mục có lợi suất vượt lãi suất phi rủi ro, nhưng mức lợi suất này chưa lớn so với biến động đã chịu. Nên xem thêm mức sụt giảm và kết quả so với VNINDEX.'
+    if x < 1: return 'Danh mục tạo ra lợi suất tương đối tốt so với mức biến động trong giai đoạn đánh giá. Nên xem thêm mức sụt giảm và khả năng duy trì kết quả này.'
+    return 'Danh mục có hiệu quả tốt trên mỗi đơn vị biến động trong giai đoạn đánh giá. Tuy nhiên, kết quả này không đồng nghĩa với rủi ro thấp hoặc lợi nhuận tương lai chắc chắn.'
 
 def explain_drawdown(x):
     if pd.isna(x): return 'Chưa đủ dữ liệu để đánh giá.'
@@ -20,4 +19,4 @@ def explain_regime(regime):
     return 'Thị trường chưa cho tín hiệu đủ mạnh để nghiêng rõ về trạng thái tích cực hoặc phòng thủ.'
 
 def build_summary(performance, regime_result, rebalance_needed, target_equity=None):
-    s=performance or {};return {'sharpe':s.get('Sharpe Ratio'),'drawdown':s.get('Maximum Drawdown'),'cagr':s.get('Annualized Return'),'sharpe_text':explain_sharpe(s.get('Sharpe Ratio')),'drawdown_text':explain_drawdown(s.get('Maximum Drawdown')),'regime_text':explain_regime(getattr(regime_result,'regime','Trung tính') if regime_result else 'Trung tính'),'rebalance_text':'Cần xem xét tái cân bằng theo ngưỡng đã đặt.' if rebalance_needed else 'Chưa cần tái cân bằng theo ngưỡng đã đặt.','target_equity':target_equity}
+    s=performance or {};return {'sharpe':s.get('Sharpe Ratio'),'drawdown':s.get('Maximum Drawdown'),'cagr':s.get('Annualized Return'),'sharpe_text':explain_sharpe(s.get('Sharpe Ratio')),'drawdown_text':explain_drawdown(s.get('Maximum Drawdown')),'regime_text':explain_regime(getattr(regime_result,'regime','Trung tính') if regime_result else 'Trung tính'),'rebalance_text':'Danh mục đang lệch khỏi mức mục tiêu và nên xem xét điều chỉnh.' if rebalance_needed else 'Danh mục chưa lệch đủ xa khỏi mức mục tiêu để cần điều chỉnh.','target_equity':target_equity}
