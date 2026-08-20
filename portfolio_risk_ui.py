@@ -38,7 +38,7 @@ def render_portfolio_risk(returns, benchmark_returns, risk_free_rate=0.0):
     c2.metric("Information Ratio", _fmt(result["information_ratio"]))
     c3.metric("Jensen Alpha", _fmt(result["jensen_alpha"], "pct"))
     c4.metric("Tracking Error", _fmt(result["tracking_error"], "pct"))
-    st.caption("Sharpe là chỉ tiêu chính cho lợi suất so với tổng rủi ro. Information Ratio phù hợp hơn khi đánh giá lợi suất chủ động so với benchmark. Sortino bổ sung góc nhìn về rủi ro giảm giá. Jensen Alpha kiểm tra lợi suất vượt mức giải thích bởi beta trong CAPM.")
+    st.caption("Sharpe cho biết lợi suất vượt lãi suất phi rủi ro so với mức biến động. Information Ratio phù hợp khi xem phần lợi suất vượt VNINDEX. Sortino tập trung hơn vào rủi ro giảm giá. Jensen Alpha cho biết phần lợi suất vượt mức giải thích bởi beta thị trường trong mô hình CAPM.")
 
     with st.expander("Chỉ tiêu chuyên sâu", expanded=False):
         c1, c2, c3, c4 = st.columns(4)
@@ -66,6 +66,6 @@ def render_portfolio_risk(returns, benchmark_returns, risk_free_rate=0.0):
 
     with st.expander("Diễn giải Sharpe", expanded=True):
         if np.isfinite(result["sharpe"]):
-            st.write(f"Sharpe Ratio hiện tại là {result['sharpe']:.2f}. Chỉ tiêu được tính từ lợi suất vượt lãi suất phi rủi ro chia cho độ biến động. Theo thông lệ CFA, Sharpe nên được dùng chủ yếu để xếp hạng tương đối giữa các phương án có cùng bối cảnh, không nên gắn nhãn tốt hoặc xấu chỉ dựa trên một ngưỡng cố định.")
+            st.write(f"Sharpe Ratio hiện tại là {result['sharpe']:.2f}. Chỉ tiêu này cho biết danh mục tạo ra bao nhiêu lợi suất vượt lãi suất phi rủi ro trên mỗi đơn vị biến động. Sharpe càng cao thì hiệu quả trên rủi ro càng tốt, nhưng không nên đánh giá danh mục chỉ bằng một ngưỡng cố định. Nên so sánh với các phương án khác, VNINDEX và mức rủi ro mà bạn chấp nhận.")
         st.write(f"Lãi suất phi rủi ro đang dùng: {risk_free_rate:.2%}/năm.")
-        st.write("Khi phân phối lợi suất lệch hoặc có đuôi dày, cần xem thêm Sortino, Maximum Drawdown và CVaR thay vì chỉ dựa vào Sharpe.")
+        st.write("Sharpe chỉ nhìn rủi ro tổng thể. Nên xem thêm Sortino để biết rủi ro giảm giá, Maximum Drawdown để biết danh mục từng giảm sâu đến đâu và CVaR để xem mức thua lỗ trong những ngày xấu nhất.")
