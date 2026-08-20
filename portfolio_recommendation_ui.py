@@ -25,12 +25,12 @@ def _choose_best(summary,policy):
     target=float(policy.get('target_return',0))
     limit=_risk_limit(policy)
     feasible=s[(s['Lợi suất kỳ vọng']>=target)&(s['Độ biến động']<=limit)]
-    if not feasible.empty:return feasible['Sharpe Ratio'].idxmax(),'Đạt mục tiêu lợi nhuận và nằm trong mức biến động phù hợp.','Phù hợp'
+    if not feasible.empty:return feasible['Sharpe Ratio'].idxmax(),'Phương án này vừa đáp ứng mục tiêu lợi nhuận vừa nằm trong mức biến động bạn đặt ra.','Phù hợp'
     target_ok=s[s['Lợi suất kỳ vọng']>=target]
     if not target_ok.empty:
         best=target_ok['Sharpe Ratio'].idxmax()
-        return best,'Có thể đạt mục tiêu lợi nhuận nhưng cần chấp nhận biến động cao hơn mức bạn đặt ra.','Đánh đổi'
-    return None,'Tập cổ phiếu hiện tại chưa tạo được phương án đạt mục tiêu lợi nhuận.','Chưa phù hợp'
+        return best,'Có phương án đạt mục tiêu lợi nhuận, nhưng để đạt được mức này cần chấp nhận biến động cao hơn mức bạn đặt ra.','Đánh đổi'
+    return None,'Tập cổ phiếu hiện tại chưa tạo được phương án có lợi suất kỳ vọng đạt mục tiêu.','Chưa phù hợp'
 
 
 def _diagnose_target_gap(optimization_result,best,policy):
@@ -133,11 +133,11 @@ def render_recommendation(returns,optimization_result,regime_result,policy):
             view=negative.copy()
             for col in ['Tỷ trọng','Lợi suất kỳ vọng','Đóng góp vào lợi suất','Ảnh hưởng so với mục tiêu']:view[col]=view[col].map(lambda x:f'{x:.2%}')
             st.dataframe(view,use_container_width=True);st.caption('Bảng này cho biết cổ phiếu nào đang kéo lợi suất kỳ vọng của danh mục xuống so với mục tiêu.')
-    else:st.success(f'Danh mục được chọn có lợi suất kỳ vọng {expected:.2%}, đạt mục tiêu {target:.2%} trước khi xét kết quả thực tế.')
+    else:st.success(f'Phương án này có lợi suất kỳ vọng {expected:.2%}, cao hơn mục tiêu {target:.2%}. Đây là kết quả ước tính từ dữ liệu và mô hình, không phải mức lợi nhuận được đảm bảo.')
     st.subheader('Có cần thay đổi tập cổ phiếu không?')
     if expected<target:
         max_expected=float(summary['Lợi suất kỳ vọng'].max())
         if max_expected<target:st.warning('Tập cổ phiếu hiện tại chưa tạo được phương án đạt mục tiêu. Nên mở rộng tập cổ phiếu hoặc điều chỉnh mục tiêu.')
         else:st.info('Tập cổ phiếu có phương án đạt mục tiêu nhưng phương án phù hợp với mức rủi ro hiện tại chưa đạt. Nên xem lại sự đánh đổi giữa lợi nhuận và biến động.')
-    else:st.success('Chưa có lý do từ riêng mục tiêu lợi nhuận để thay đổi tập cổ phiếu.')
+    else:st.success('Chỉ xét riêng mục tiêu lợi nhuận thì chưa có lý do rõ ràng để thay đổi tập cổ phiếu. Tuy nhiên, vẫn cần xem xét thêm mức tập trung, biến động, tương quan và mức sụt giảm trước khi quyết định giữ nguyên.')
     st.session_state['recommended_portfolio']=best;st.session_state['recommendation_result']=complete
