@@ -23,12 +23,8 @@ def risk_aversion_from_profile(risk_tolerance):
     return float(np.clip(6.0-4.0*score/100.0,2.0,6.0))
 
 
-def build_complete_portfolio(orp_weights,expected_returns,covariance,risk_free_rate,risk_tolerance,allow_leverage=None,margin_rate=None,max_leverage=2.0,current_weights=None,**kwargs):
-    """Chuyển Optimal Risky Portfolio thành Complete Portfolio, hỗ trợ vay tối đa 1:1 vốn tự có.
-
-    Khi bật Margin, y có thể từ 0 đến 2. Ví dụ vốn tự có 100 triệu có thể đầu tư tối đa 200 triệu,
-    tương đương vay tối đa 100 triệu. Chi phí vay được tính trực tiếp vào lợi suất kỳ vọng.
-    """
+def build_complete_portfolio(orp_weights,expected_returns,covariance,risk_free_rate,risk_tolerance,allow_leverage=None,margin_rate=None,max_leverage=2.0,current_weights=None,regime=None,equity_min=None,equity_max=None,max_single_stock_weight=1.0,**kwargs):
+    """Chuyển Optimal Risky Portfolio thành Complete Portfolio và áp dụng ngân sách cổ phiếu theo Market Regime."""
     session_policy={};widget_leverage=None;widget_margin=None
     try:
         import streamlit as st
@@ -39,30 +35,30 @@ def build_complete_portfolio(orp_weights,expected_returns,covariance,risk_free_r
         st=None
     if allow_leverage is None:allow_leverage=bool(widget_leverage if widget_leverage is not None else session_policy.get('allow_leverage',False))
     if margin_rate is None:
-        if widget_margin is not None: margin_rate=float(widget_margin/100)
-        elif 'saved_margin_rate' in (st.session_state if st is not None else {}): margin_rate=float(st.session_state['saved_margin_rate'])
-        else: margin_rate=float(session_policy.get('margin_rate',0.12))
+        if widget_margin is not None:margin_rate=float(widget_margin/100)
+        elif 'saved_margin_rate' in (st.session_state if st is not None else {}):margin_rate=float(st.session_state['saved_margin_rate'])
+        else:margin_rate=float(session_policy.get('margin_rate',0.12))
     w_orp=pd.Series(orp_weights,dtype=float).clip(lower=0)
     if w_orp.sum()<=0:raise ValueError('Optimal Risky Portfolio không có tỷ trọng hợp lệ.')
-    w_orp=w_orp/w_orp.sum();mu=pd.Series(expected_returns,dtype=float).reindex(w_orp.index).fillna(0)
-    cov=pd.DataFrame(covariance,dtype=float).reindex(index=w_orp.index,columns=w_orp.index).fillna(0)
+    w_orp=w_orp/w_orp.sum();mu=pd.Series(expected_returns,dtype=float).reindex(w_orp.index).fillna(0);cov=pd.DataFrame(covariance,dtype=float).reindex(index=w_orp.index,columns=w_orp.index).fillna(0)
     rf=float(risk_free_rate);margin=float(margin_rate);A=risk_aversion_from_profile(risk_tolerance)
-    er_orp=float(w_orp.dot(mu));variance_orp=float(w_orp.dot(cov).dot(w_orp));sigma_orp=float(np.sqrt(max(variance_orp,0.0)));excess=er_orp-rf
-    y_unlevered_raw=float(excess/(A*variance_orp)) if variance_orp>1e-12 else 0.0
-    y_levered_raw=float((er_orp-margin)/(A*variance_orp)) if allow_leverage and variance_orp>1e-12 else y_unlevered_raw
-    y=float(np.clip(y_levered_raw,0.0,float(max_leverage))) if allow_leverage else float(np.clip(y_unlevered_raw,0.0,1.0))
-    complete_equity=w_orp*y;borrowed=max(0.0,y-1.0);defensive=max(0.0,1.0-y)
-    borrowing_cost=borrowed*margin
-    complete_return=rf+y*excess-borrowed*(margin-rf) if y<=1 else y*er_orp-borrowed*margin
-    complete_vol=abs(y)*sigma_orp;complete_sharpe=(complete_return-rf)/complete_vol if complete_vol>1e-12 else np.nan
+    er_orp=float(w_orp.dot(mu));variance_orp=float(w_orp.dot(cov).dot(w_orp));sigma_orp=float(np.sqrt(max(variance_orp,0.0)))
+    excess=er_orp-rf;y_unlevered_raw=float(excess/(A*variance_orp)) if variance_orp>1e-12 else 0.0;y_levered_raw=float((er_orp-margin)/(A*variance_orp)) if allow_leverage and variance_orp>1e-12 else y_unlevered_raw
+    raw_y=float(np.clip(y_levered_raw,0.0,float(max_leverage))) if allow_leverage else float(np.clip(y_unlevered_raw,0.0,1.0))
+    regime_floor=None if equity_min is None else float(equity_min);regime_cap=None if equity_max is None else float(equity_max)
+    if regime_floor is not None and regime_cap is not None:
+        regime_floor=max(0.0,min(regime_floor,1.0));regime_cap=max(regime_floor,min(regime_cap,1.0))
+        y=min(max(raw_y,regime_floor),regime_cap)
+    else:y=raw_y
+    if not allow_leverage:y=min(y,1.0)
+    complete_equity=w_orp*y;borrowed=max(0.0,y-1.0);defensive=max(0.0,1.0-y);borrowing_cost=borrowed*margin
+    complete_return=y*er_orp-borrowed*margin+defensive*rf;complete_vol=abs(y)*sigma_orp;complete_sharpe=(complete_return-rf)/complete_vol if complete_vol>1e-12 else np.nan
     comparison=compare_current_to_target(current_weights if current_weights is not None else pd.Series(dtype=float),complete_equity)
-    result={'orp_weights':w_orp,'complete_equity_weights':complete_equity,'defensive_weight':defensive,'borrowed_weight':borrowed,'expected_return_orp':er_orp,'volatility_orp':sigma_orp,'variance_orp':variance_orp,'risk_free_rate':rf,'margin_rate':margin,'risk_aversion':A,'excess_return':excess,'y_raw_no_borrow':y_unlevered_raw,'y_raw_with_margin':y_levered_raw,'y':y,'complete_expected_return':complete_return,'complete_volatility':complete_vol,'complete_sharpe':complete_sharpe,'borrowing_cost':borrowing_cost,'allow_leverage':bool(allow_leverage),'max_leverage':float(max_leverage),'comparison':comparison}
+    result={'orp_weights':w_orp,'complete_equity_weights':complete_equity,'defensive_weight':defensive,'borrowed_weight':borrowed,'expected_return_orp':er_orp,'volatility_orp':sigma_orp,'variance_orp':variance_orp,'risk_free_rate':rf,'margin_rate':margin,'risk_aversion':A,'excess_return':excess,'y_raw_no_borrow':y_unlevered_raw,'y_raw_with_margin':y_levered_raw,'y_unconstrained':raw_y,'y':y,'complete_expected_return':complete_return,'complete_volatility':complete_vol,'complete_sharpe':complete_sharpe,'borrowing_cost':borrowing_cost,'allow_leverage':bool(allow_leverage),'max_leverage':float(max_leverage),'regime':regime,'equity_min':regime_floor,'equity_max':regime_cap,'comparison':comparison}
     if st is not None:
         try:
-            if bool(allow_leverage) and borrowed>1e-8:
-                st.warning(f'Đã kích hoạt vay Margin: tổng phơi nhiễm cổ phiếu {y:.1%} vốn tự có, trong đó vốn vay {borrowed:.1%}. Chi phí vay giả định {margin:.2%}/năm, tương đương {borrowing_cost:.2%} vốn tự có mỗi năm.')
-            if np.isfinite(complete_sharpe) and complete_sharpe<0.5:
-                st.warning(f'Sharpe Ratio của Complete Portfolio là {complete_sharpe:.2f}. Danh mục có thể vẫn đạt mục tiêu lợi nhuận, nhưng hiệu quả lợi nhuận trên mỗi đơn vị biến động còn thấp. Cần xem đồng thời Maximum Drawdown, Sortino và kết quả so với VNINDEX.')
+            if bool(allow_leverage) and borrowed>1e-8:st.warning(f'Đã kích hoạt vay Margin: tổng phơi nhiễm cổ phiếu {y:.1%} vốn tự có, trong đó vốn vay {borrowed:.1%}. Chi phí vay giả định {margin:.2%}/năm, tương đương {borrowing_cost:.2%} vốn tự có mỗi năm.')
+            if regime_floor is not None and regime_cap is not None:st.caption(f'Ngân sách cổ phiếu theo Market Regime {regime}: {regime_floor:.0%} đến {regime_cap:.0%}. Hệ số đầu tư thực tế y = {y:.1%}.')
         except Exception:pass
     return result
 
