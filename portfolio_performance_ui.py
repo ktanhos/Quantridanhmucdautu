@@ -15,7 +15,8 @@ def render_portfolio_performance(returns,benchmark_returns=None,current_weights=
     st.subheader('7.1. Đánh giá hiệu quả lịch sử')
     st.markdown('<div class="section-note">Đây là nhìn lại dữ liệu quá khứ: danh mục đã tăng giảm ra sao, phải chịu mức rủi ro nào và kết quả so với VNINDEX như thế nào. Kết quả không phải dự báo tương lai.</div>',unsafe_allow_html=True)
     leverage=st.session_state.get('complete_portfolio_result') or {};borrowed=float(leverage.get('borrowed_weight',0));margin_rate=float(leverage.get('margin_rate',0));leveraged=borrowed>1e-10
-    w=_portfolio_weights(current_weights,returns.columns) or _portfolio_weights(leverage.get('complete_equity_weights'),returns.columns)
+    w=_portfolio_weights(current_weights,returns.columns)
+    if w is None:w=_portfolio_weights(leverage.get('complete_equity_weights'),returns.columns)
     if w is not None:
         if leveraged:portfolio=returns.mul(w,axis=1).sum(axis=1)-borrowed*margin_rate/252;label='Danh mục đề xuất có sử dụng tiền vay'
         else:w=w/w.sum();portfolio=returns.mul(w,axis=1).sum(axis=1);label='Danh mục đề xuất'
